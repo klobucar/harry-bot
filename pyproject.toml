@@ -1,0 +1,84 @@
+[project]
+name = "harry"
+version = "0.1.0"
+description = "Harry Doyle — a Discord baseball stats bot powered by pybaseball and Statcast"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "discord-py>=2.7.1",
+    "matplotlib>=3.10.0",
+    "pandas>=3.0.1",
+    "pybaseball>=2.2.7",
+]
+
+[project.scripts]
+harry = "main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-recording>=0.13.0",
+    "vcrpy>=6.0.0",
+    "ruff>=0.9.0",
+    "ty>=0.0.1a1",
+]
+
+# ── pytest ─────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Force-load pytest-recording: uv with package=false skips entry-point registration,
+# so the plugin won't auto-discover without this.
+addopts = "-p pytest_recording"
+
+# ── ruff ───────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = [".", "commands", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking  (move pure-type imports into TYPE_CHECKING)
+    "PTH",  # flake8-use-pathlib
+    "RUF",  # ruff-specific rules
+    "ERA",  # eradicate (commented-out code)
+    "PL",   # pylint subset (PLR, PLC, PLE)
+]
+ignore = [
+    "E501",    # line too long — handled by formatter
+    "B008",    # do not perform function calls in argument defaults (discord uses this)
+    "PLR2004", # magic values — noisy in sports/stat code
+    "PLR0913", # too many arguments — common in command handlers
+    "SIM108",  # ternary vs if/else — subjective
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["commands", "mlb_api", "persona", "statcast", "utils"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "S101"]   # allow assert and magic numbers in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ── ty ─────────────────────────────────────────────────────────────────────────
+[tool.ty]
+# ty is Astral's new type checker (early access — config will expand as it matures)
+
+[tool.ty.environment]
+python-version = "3.14"
+
+# ── uv ─────────────────────────────────────────────────────────────────────────
+[tool.uv]
+package = false

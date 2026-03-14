@@ -1,0 +1,32 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Host:
+      - statsapi.mlb.com
+    method: GET
+    uri: https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate=2025-04-03&endDate=2025-04-17&teamId=116&hydrate=probablePitcher
+  response:
+    body:
+      string: >
+        {"copyright":"Copyright 2025 MLB Advanced Media, L.P.","totalItems":3,"totalEvents":0,"totalGames":3,"dates":[
+          {"date":"2025-04-04","totalItems":1,"totalGames":1,"games":[
+            {"gamePk":778902,"gameType":"R","season":"2025","gameDate":"2025-04-04T18:10:00Z","status":{"abstractGameState":"Preview","codedGameState":"S","detailedState":"Scheduled","abstractGameCode":"P"},"teams":{
+              "away":{"team":{"id":114,"name":"Cleveland Guardians"},"probablePitcher":{"id":669923,"fullName":"Shane Bieber"}},
+              "home":{"team":{"id":116,"name":"Detroit Tigers"},"probablePitcher":{"id":663465,"fullName":"Tarik Skubal"}}
+            },"venue":{"id":2394,"name":"Comerica Park"}}
+          ]},
+          {"date":"2025-04-05","totalItems":1,"totalGames":1,"games":[
+            {"gamePk":778903,"gameType":"R","season":"2025","gameDate":"2025-04-05T18:10:00Z","status":{"abstractGameState":"Preview","codedGameState":"S","detailedState":"Scheduled","abstractGameCode":"P"},"teams":{
+              "away":{"team":{"id":114,"name":"Cleveland Guardians"},"probablePitcher":{"id":666142,"fullName":"Triston McKenzie"}},
+              "home":{"team":{"id":116,"name":"Detroit Tigers"},"probablePitcher":{"id":664056,"fullName":"Reese Olson"}}
+            },"venue":{"id":2394,"name":"Comerica Park"}}
+          ]}
+        ]}
+    headers:
+      Content-Type:
+      - application/json;charset=UTF-8
+    status:
+      code: 200
+      message: OK
+version: 1

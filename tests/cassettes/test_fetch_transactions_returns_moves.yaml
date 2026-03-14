@@ -1,0 +1,23 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Host:
+      - statsapi.mlb.com
+    method: GET
+    uri: https://statsapi.mlb.com/api/v1/transactions?teamId=116&startDate=2025-03-20&endDate=2025-04-03
+  response:
+    body:
+      string: >
+        {"copyright":"Copyright 2025 MLB Advanced Media, L.P.","transactions":[
+          {"id":123001,"date":"2025-04-02","effectiveDate":"2025-04-02","resolution":"","description":"Detroit Tigers placed 1B Spencer Torkelson on the 10-day injured list, retroactive to March 31. Right hand inflammation.","person":{"id":679529,"fullName":"Spencer Torkelson"},"toTeam":{"id":116,"name":"Detroit Tigers"}},
+          {"id":122988,"date":"2025-04-01","effectiveDate":"2025-04-01","resolution":"","description":"Detroit Tigers selected the contract of OF Mark Canha from Triple-A Toledo.","person":{"id":571745,"fullName":"Mark Canha"},"toTeam":{"id":116,"name":"Detroit Tigers"}},
+          {"id":122901,"date":"2025-03-28","effectiveDate":"2025-03-28","resolution":"","description":"Detroit Tigers optioned RHP Beau Brieske to Triple-A Toledo.","person":{"id":686611,"fullName":"Beau Brieske"},"fromTeam":{"id":116,"name":"Detroit Tigers"}}
+        ]}
+    headers:
+      Content-Type:
+      - application/json;charset=UTF-8
+    status:
+      code: 200
+      message: OK
+version: 1

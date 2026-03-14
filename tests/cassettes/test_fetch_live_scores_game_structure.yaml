@@ -1,0 +1,26 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Host:
+      - statsapi.mlb.com
+    method: GET
+    uri: https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2025-04-03&teamId=116&hydrate=linescore%2CprobablePitcher%28note%29
+  response:
+    body:
+      string: >
+        {"copyright":"Copyright 2025 MLB Advanced Media, L.P.","totalItems":1,"totalEvents":0,"totalGames":1,"totalGamesInProgress":1,"dates":[
+          {"date":"2025-04-03","totalItems":1,"totalEvents":0,"totalGames":1,"totalGamesInProgress":1,"games":[
+            {"gamePk":778901,"gameType":"R","season":"2025","gameDate":"2025-04-03T18:10:00Z","status":{"abstractGameState":"Live","codedGameState":"I","detailedState":"In Progress","statusCode":"I","startTimeTBD":false,"abstractGameCode":"L"},"teams":{
+              "away":{"score":2,"team":{"id":114,"name":"Cleveland Guardians","link":"/api/v1/teams/114"},"isWinner":false,"splitSquad":false,"seriesNumber":1},
+              "home":{"score":4,"team":{"id":116,"name":"Detroit Tigers","link":"/api/v1/teams/116"},"isWinner":true,"splitSquad":false,"seriesNumber":1}
+            },"linescore":{"currentInning":7,"currentInningOrdinal":"7th","inningHalf":"Bottom","isTopInning":false,"scheduledInnings":9,"innings":[],"teams":{"home":{"runs":4,"hits":8,"errors":0},"away":{"runs":2,"hits":5,"errors":0}},"outs":1,"balls":2,"strikes":1},"venue":{"id":2394,"name":"Comerica Park"},"content":{}}
+          ]}
+        ]}
+    headers:
+      Content-Type:
+      - application/json;charset=UTF-8
+    status:
+      code: 200
+      message: OK
+version: 1

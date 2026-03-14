@@ -1,0 +1,26 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Host:
+      - statsapi.mlb.com
+    method: GET
+    uri: https://statsapi.mlb.com/api/v1/teams/116/roster?rosterType=active
+  response:
+    body:
+      string: >
+        {"copyright":"Copyright 2025 MLB Advanced Media, L.P.","roster":[
+          {"person":{"id":663465,"fullName":"Tarik Skubal","link":"/api/v1/people/663465"},"jerseyNumber":"29","position":{"code":"1","name":"Pitcher","type":"Pitcher","abbreviation":"SP"},"status":{"code":"A","description":"Active"},"parentTeamId":116},
+          {"person":{"id":664056,"fullName":"Reese Olson","link":"/api/v1/people/664056"},"jerseyNumber":"45","position":{"code":"1","name":"Pitcher","type":"Pitcher","abbreviation":"SP"},"status":{"code":"A","description":"Active"},"parentTeamId":116},
+          {"person":{"id":680757,"fullName":"Riley Greene","link":"/api/v1/people/680757"},"jerseyNumber":"31","position":{"code":"7","name":"Outfielder","type":"Outfielder","abbreviation":"OF"},"status":{"code":"A","description":"Active"},"parentTeamId":116},
+          {"person":{"id":679529,"fullName":"Spencer Torkelson","link":"/api/v1/people/679529"},"jerseyNumber":"20","position":{"code":"3","name":"First Base","type":"Infielder","abbreviation":"1B"},"status":{"code":"A","description":"Active"},"parentTeamId":116},
+          {"person":{"id":682998,"fullName":"Kerry Carpenter","link":"/api/v1/people/682998"},"jerseyNumber":"30","position":{"code":"9","name":"Outfielder","type":"Outfielder","abbreviation":"RF"},"status":{"code":"A","description":"Active"},"parentTeamId":116},
+          {"person":{"id":680570,"fullName":"Colt Keith","link":"/api/v1/people/680570"},"jerseyNumber":"15","position":{"code":"4","name":"Second Base","type":"Infielder","abbreviation":"2B"},"status":{"code":"A","description":"Active"},"parentTeamId":116}
+        ],"teamId":116,"rosterType":"active","link":"/api/v1/teams/116/roster?rosterType=active"}
+    headers:
+      Content-Type:
+      - application/json;charset=UTF-8
+    status:
+      code: 200
+      message: OK
+version: 1
