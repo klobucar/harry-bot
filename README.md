@@ -55,3 +55,20 @@ In the Discord Developer Portal, enable:
 - `bot` scope
 - `applications.commands` scope
 - Send Messages + Attach Files + Embed Links permissions
+
+## Deploying to Fly.io
+
+Harry is configured to deploy as a background worker on Fly.io using the included `Dockerfile` and `fly.toml`.
+
+1. Install the `flyctl` CLI to set up the app.
+2. Initialize the app without deploying:
+   ```bash
+   fly launch --no-deploy
+   ```
+3. Open the [Fly.io Dashboard](https://fly.io/dashboard) in your browser.
+4. Navigate to your new `harry-bot` app -> **Secrets**.
+5. Add your `DISCORD_TOKEN` and `OWNER_ID` to the Secrets UI.
+6. Deploy the bot via the CLI or UI (if linked to GitHub):
+   ```bash
+   fly deploy
+   ```
