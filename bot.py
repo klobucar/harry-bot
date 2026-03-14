@@ -11,9 +11,15 @@ import logging
 import os
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 log = logging.getLogger("harry")
+
+_OWNER_ONLY_DM_MSG = (
+    "Juuust a bit outside my jurisdiction, pal. "
+    "I only take calls from the owner."
+)
 
 
 class HarryBot(commands.Bot):
@@ -21,6 +27,28 @@ class HarryBot(commands.Bot):
         intents = discord.Intents.default()
         # command_prefix is required by commands.Bot but unused — slash commands only
         super().__init__(command_prefix="!", intents=intents)
+
+        raw = os.environ.get("OWNER_ID", "")
+        self._owner_id: int | None = int(raw) if raw.strip().isdigit() else None
+        if self._owner_id is None:
+            log.warning(
+                "OWNER_ID is not set — DM access is unrestricted. "
+                "Set OWNER_ID=<your Discord user ID> to lock DMs to yourself."
+            )
+
+        # Global slash-command check: block non-owner slash commands in DMs.
+        @self.tree.interaction_check
+        async def _owner_dm_check(interaction: discord.Interaction) -> bool:
+            if (
+                self._owner_id is not None
+                and isinstance(interaction.channel, discord.DMChannel)
+                and interaction.user.id != self._owner_id
+            ):
+                await interaction.response.send_message(
+                    _OWNER_ONLY_DM_MSG, ephemeral=True
+                )
+                return False
+            return True
 
     async def setup_hook(self) -> None:
         from commands import setup  # noqa: PLC0415  (deferred to avoid circular import)
@@ -38,6 +66,16 @@ class HarryBot(commands.Bot):
             # Global sync — takes up to 1 hour to propagate
             await self.tree.sync()
             log.info("Slash commands synced globally (may take up to 1 hour).")
+
+    async def on_message(self, message: discord.Message) -> None:
+        """Drop DMs from anyone who isn't the owner before processing."""
+        if (
+            self._owner_id is not None
+            and isinstance(message.channel, discord.DMChannel)
+            and message.author.id != self._owner_id
+        ):
+            return  # silently ignore
+        await super().on_message(message)
 
     async def on_ready(self) -> None:
         assert self.user is not None  # guaranteed once on_ready fires

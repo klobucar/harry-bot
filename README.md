@@ -13,7 +13,7 @@ A Discord bot named after **Harry Doyle**, the sardonic, bourbon-fueled announce
 
 ```bash
 # 1. Install dependencies (creates .venv automatically)
-cd /path/to/Lou
+cd /path/to/Harry-bot
 uv sync
 
 # 2. Set your Discord bot token
@@ -22,6 +22,7 @@ cp .env.example .env
 
 # 3. Run the bot
 export DISCORD_TOKEN=your_token_here
+export OWNER_ID=your_discord_id_here  # Optional: locks DMs to you
 uv run python main.py
 
 # Or use the installed script entrypoint:
