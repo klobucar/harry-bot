@@ -5,3 +5,13 @@ __pycache__
 .ruff_cache
 .pytest_cache
 tests/
+
+.cache/
+.pybaseball_cache/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.coverage
+coverage.xml

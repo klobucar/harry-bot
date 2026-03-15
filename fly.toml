@@ -11,6 +11,7 @@ primary_region = 'iad'
 
 [env]
   MPLBACKEND = 'Agg'
+  PYBASEBALL_CACHE = "/data/pybaseball_cache"
 
 [processes]
   app = 'python main.py'
@@ -21,5 +22,5 @@ primary_region = 'iad'
   memory_mb = 2048
 
 [mounts]
-  source = "pybaseball_cache"
+  source = "harry_data_cache"
   destination = "/data"

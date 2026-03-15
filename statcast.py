@@ -41,6 +41,15 @@ from pybaseball import (
 
 from utils import current_year
 
+import os
+_cache_dir = os.environ.get(
+    "PYBASEBALL_CACHE",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pybaseball_cache")
+)
+if not os.path.exists(_cache_dir):
+    os.makedirs(_cache_dir, exist_ok=True)
+pybaseball.cache.config.cache_directory = _cache_dir
+
 # ---------------------------------------------------------------------------
 # Setup & Configuration
 # ---------------------------------------------------------------------------
