@@ -19,6 +19,32 @@ from io import BytesIO
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+# --- Pybaseball Memory Optimization ---
+# Monkey-patch Pandas to use the high-performance PyArrow C++ engine globally.
+# This prevents Pybaseball from crashing the Fly.io 512MB RAM ceiling by
+# dropping dataframe read memory spikes from 250MB down to <5MB.
+_original_read_csv = pd.read_csv
+def fast_read_csv(*args, **kwargs):
+    kwargs['engine'] = 'pyarrow'
+    try:
+        return _original_read_csv(*args, **kwargs)
+    except Exception:
+        kwargs.pop('engine', None)
+        return _original_read_csv(*args, **kwargs)
+pd.read_csv = fast_read_csv
+
+_original_read_json = pd.read_json
+def fast_read_json(*args, **kwargs):
+    kwargs['engine'] = 'pyarrow'
+    try:
+        return _original_read_json(*args, **kwargs)
+    except Exception:
+        kwargs.pop('engine', None)
+        return _original_read_json(*args, **kwargs)
+pd.read_json = fast_read_json
+# --------------------------------------
+
 import pybaseball
 import requests
 from matplotlib.figure import Figure

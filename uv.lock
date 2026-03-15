@@ -399,6 +399,7 @@ dependencies = [
     { name = "discord-py" },
     { name = "matplotlib" },
     { name = "pandas" },
+    { name = "pyarrow" },
     { name = "pybaseball" },
 ]
 
@@ -416,6 +417,7 @@ requires-dist = [
     { name = "discord-py", specifier = ">=2.7.1" },
     { name = "matplotlib", specifier = ">=3.10.0" },
     { name = "pandas", specifier = ">=3.0.1" },
+    { name = "pyarrow", specifier = ">=23.0.1" },
     { name = "pybaseball", specifier = ">=2.2.7" },
 ]
 
