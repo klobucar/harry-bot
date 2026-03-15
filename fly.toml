@@ -19,3 +19,7 @@ primary_region = 'iad'
   memory = '2g'
   cpus = 1
   memory_mb = 2048
+
+[mounts]
+  source = "pybaseball_cache"
+  destination = "/data"

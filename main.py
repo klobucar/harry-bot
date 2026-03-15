@@ -34,6 +34,9 @@ def _configure_logging() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
+    
+    # Disable overly verbose pybaseball caching logs
+    logging.getLogger("pybaseball").setLevel(logging.WARNING)
 
 
 def main() -> None:
@@ -41,7 +44,12 @@ def main() -> None:
 
     # Enable pybaseball's disk cache to reduce repeat network calls.
     # Called here (not at import time) so test suites can import statcast.py
-    # without side-effects.
+    # without side-effects. We point the cache dir to our Fly.io persistent volume.
+    cache_dir = os.environ.get("PYBASEBALL_CACHE", "/data/.pybaseball_cache")
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir, exist_ok=True)
+        
+    pybaseball.cache.config.cache_directory = cache_dir
     pybaseball.cache.enable()
 
     token = os.environ.get("DISCORD_TOKEN")

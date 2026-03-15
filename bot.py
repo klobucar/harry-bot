@@ -15,6 +15,11 @@ from discord import app_commands
 from discord.ext import commands
 
 log = logging.getLogger("harry")
+log.setLevel(logging.INFO)
+
+# Disable overly verbose discord.py debug logs
+discord_logger = logging.getLogger("discord")
+discord_logger.setLevel(logging.WARNING)
 
 _OWNER_ONLY_DM_MSG = (
     "Juuust a bit outside my jurisdiction, pal. "

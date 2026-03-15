@@ -241,7 +241,7 @@ class AdvancedCommands(commands.Cog):
 
         log.info(f"/career: {player_name} years {years[0]}-{years[-1]}")
 
-        sem = asyncio.Semaphore(4)
+        sem = asyncio.Semaphore(1)
 
         async def _bounded(yr: int, player_type: str):
             async with sem:

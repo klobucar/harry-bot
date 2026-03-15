@@ -188,8 +188,8 @@ class TestFetchCareerStats:
     def test_finds_pitcher(self) -> None:
         df = self._make_pitch_df("tarik skubal")
         with (
-            patch("statcast.pitching_stats", return_value=df),
-            patch("statcast.batting_stats", return_value=pd.DataFrame()),
+            patch("statcast.fg_pitching_data", return_value=df),
+            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
         ):
             result = fetch_career_stats("tarik", "skubal")
         assert result["type"] == "pitcher"
@@ -198,16 +198,16 @@ class TestFetchCareerStats:
     def test_falls_back_to_batter(self) -> None:
         bat_df = self._make_bat_df("riley greene")
         with (
-            patch("statcast.pitching_stats", return_value=pd.DataFrame()),
-            patch("statcast.batting_stats", return_value=bat_df),
+            patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
+            patch("statcast.fg_batting_data", return_value=bat_df),
         ):
             result = fetch_career_stats("riley", "greene")
         assert result["type"] == "batter"
 
     def test_not_found_raises(self) -> None:
         with (
-            patch("statcast.pitching_stats", return_value=pd.DataFrame()),
-            patch("statcast.batting_stats", return_value=pd.DataFrame()),
+            patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
+            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
             pytest.raises(ValueError, match="No FanGraphs career data"),
         ):
             fetch_career_stats("nobody", "here")
@@ -227,8 +227,8 @@ class TestFetchLeaderboard:
     def test_returns_top_10(self) -> None:
         df = self._make_pitch_df()
         with (
-            patch("statcast.pitching_stats", return_value=df),
-            patch("statcast.batting_stats", return_value=pd.DataFrame()),
+            patch("statcast.fg_pitching_data", return_value=df),
+            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
         ):
             result = fetch_leaderboard("ERA", 2024, "pitcher")
         assert len(result) == 10
@@ -236,16 +236,16 @@ class TestFetchLeaderboard:
     def test_rank_starts_at_1(self) -> None:
         df = self._make_pitch_df()
         with (
-            patch("statcast.pitching_stats", return_value=df),
-            patch("statcast.batting_stats", return_value=pd.DataFrame()),
+            patch("statcast.fg_pitching_data", return_value=df),
+            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
         ):
             result = fetch_leaderboard("ERA", 2024, "pitcher")
         assert result[0]["rank"] == 1
 
     def test_unknown_stat_raises(self) -> None:
         with (
-            patch("statcast.pitching_stats", return_value=pd.DataFrame()),
-            patch("statcast.batting_stats", return_value=pd.DataFrame()),
+            patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
+            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
             pytest.raises(ValueError, match="not found"),
         ):
             fetch_leaderboard("NONEXISTENT_STAT", 2024, "auto")

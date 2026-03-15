@@ -23,8 +23,8 @@ import pybaseball
 import requests
 from matplotlib.figure import Figure
 from pybaseball import (
-    batting_stats,
-    pitching_stats,
+    fg_batting_data,
+    fg_pitching_data,
     playerid_lookup,
     plotting,
     schedule_and_record,
@@ -618,7 +618,13 @@ def fetch_career_stats(first: str, last: str) -> dict:
     """
     cy = current_year()
 
-    pitch_df = pitching_stats(cy, qual=1)
+    try:
+        pitch_df = fg_pitching_data(cy, qual=1)
+    except ValueError as e:
+        if "columns passed" in str(e):
+            pitch_df = pd.DataFrame()
+        else:
+            raise
     if pitch_df is not None and not pitch_df.empty:
         row = _name_match(pitch_df, first, last)
         if not row.empty:
@@ -629,7 +635,13 @@ def fetch_career_stats(first: str, last: str) -> dict:
                 "stats": {k: _fmt(r.get(k)) for k in _PITCHING_KEYS if k in r.index},
             }
 
-    bat_df = batting_stats(cy, qual=1)
+    try:
+        bat_df = fg_batting_data(cy, qual=1)
+    except ValueError as e:
+        if "columns passed" in str(e):
+            bat_df = pd.DataFrame()
+        else:
+            raise
     if bat_df is not None and not bat_df.empty:
         row = _name_match(bat_df, first, last)
         if not row.empty:
@@ -937,23 +949,42 @@ def fetch_percentile_ranks(
 
 def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd.DataFrame | None:
     """
-    Blocking helper: fetch one year of FanGraphs pitching or batting stats.
+    Blocking helper: fetch one year of FanGraphs pitching or batting stats via JSON API.
 
     Returns DataFrame with a '_year' column, or None on any error.
     Designed to be called via asyncio.to_thread(); concurrency is managed
     by the caller (asyncio.gather + Semaphore).
     """
     try:
-        fn = pitching_stats if player_type == "pitcher" else batting_stats
+        fn = fg_pitching_data if player_type == "pitcher" else fg_batting_data
         log.info(f"FanGraphs: Requesting {player_type} stats for {yr}...")
-        df = fn(yr, yr, qual=1)
+        
+        try:
+            df = fn(yr, yr, qual=1)
+        except ValueError as e:
+            # FanGraphs returns a malformed 1-column response for future/empty years
+            if "columns passed" in str(e):
+                log.info(f"FanGraphs: No valid data for {yr} (likely future/empty season).")
+                return None
+            raise
+            
         if df is not None and not df.empty:
-            df = _name_match(df, first, last)
-            if not df.empty:
+            res = _name_match(df, first, last)
+            
+            # Immediately delete the full MLB dataframe chunk to clear RAM
+            del df
+            gc.collect()
+            
+            if not res.empty:
                 log.info(f"FanGraphs: Found {first} {last} for {player_type} in {yr}.")
-                df = df.copy()
-                df["_year"] = yr
-                return df
+                res = res.copy()
+                res["_year"] = yr
+                return res
+        else:
+            if df is not None:
+                del df
+            gc.collect()
+            
         log.warning(f"FanGraphs: Returned empty dataframe for {player_type} in {yr}.")
     except Exception as exc:
         log.error(f"FanGraphs Error [{player_type} {yr}]: {exc}", exc_info=True)
@@ -1058,12 +1089,20 @@ def fetch_leaderboard(stat: str, year: int, player_type: str = "auto") -> list[d
     boards: list[list[dict]] = []
 
     if player_type in ("pitcher", "auto"):
-        df = pitching_stats(year, qual=1)
-        boards.append(_from_df(df))
+        try:
+            df = fg_pitching_data(year, qual=1)
+            boards.append(_from_df(df))
+        except ValueError as e:
+            if "columns passed" not in str(e):
+                raise
 
     if player_type in ("batter", "auto"):
-        df = batting_stats(year, qual=1)
-        boards.append(_from_df(df))
+        try:
+            df = fg_batting_data(year, qual=1)
+            boards.append(_from_df(df))
+        except ValueError as e:
+            if "columns passed" not in str(e):
+                raise
 
     for board in boards:
         if board:
