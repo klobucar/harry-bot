@@ -9,12 +9,18 @@ No Discord imports — pure data / plot logic, making this independently testabl
 
 from __future__ import annotations
 
+import gc
 import importlib.resources
+import logging
+import urllib.request
 from datetime import date, timedelta
+from functools import wraps
 from io import BytesIO
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import pybaseball
+import requests
 from matplotlib.figure import Figure
 from pybaseball import (
     batting_stats,
@@ -34,6 +40,28 @@ from pybaseball import (
 )
 
 from utils import current_year
+
+# ---------------------------------------------------------------------------
+# Setup & Configuration
+# ---------------------------------------------------------------------------
+
+# Enable pybaseball's internal cache to avoid API rate limits (e.g. FanGraphs)
+# and dramatically speed up repeated lookups for the same player/season.
+pybaseball.cache.enable()
+
+# FanGraphs actively blocks default Python/Requests User-Agents with a 403 Forbidden.
+# We monkeypatch the requests.Session to always send a real browser User-Agent globally.
+_orig_request = requests.Session.request
+
+@wraps(_orig_request)
+def _mock_request(self, method, url, **kwargs):
+    kwargs.setdefault("headers", {})
+    kwargs["headers"]["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    return _orig_request(self, method, url, **kwargs)
+
+requests.Session.request = _mock_request
+
+log = logging.getLogger("harry")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -152,6 +180,11 @@ def plot_to_buffer(data: pd.DataFrame, title: str, colorby: str = "pitch_type") 
         buf.seek(0)
     finally:
         plt.close(fig)  # Prevent memory leak regardless of savefig outcome
+        # Aggressively clear matplotlib references
+        del ax
+        del fig
+        del data
+        gc.collect()
 
     return buf
 
@@ -255,13 +288,22 @@ def compute_matchup_stats(
     ab_count = len(atbats)
     hit_count = len(hits)
 
-    return {
+    stats = {
         "pa": len(matchup),
         "ab": ab_count,
         "hits": hit_count,
         "strikeouts": strikeouts,
         "batting_avg": (hit_count / ab_count) if ab_count > 0 else 0.0,
     }
+
+    # Free memory
+    del data
+    del matchup
+    del atbats
+    del hits
+    gc.collect()
+
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +469,12 @@ def fetch_spray_chart(
         buf.seek(0)
     finally:
         plt.close(fig)
+        # Force garbage collection of the heavy dataframes and plot layers
+        del ax
+        del fig
+        del in_play
+        del data
+        gc.collect()
 
     return buf
 
@@ -758,7 +806,8 @@ def fetch_hot_cold(
             + 4 * int((ab_df["events"] == "home_run").sum())
         )
         slg = tb / ab if ab > 0 else 0.0
-        return {
+        
+        stats = {
             "period": f"Last {days} days",
             "PA": pa,
             "H": h,
@@ -768,6 +817,14 @@ def fetch_hot_cold(
             "SLG": round(slg, 3),
             "OPS": round(obp + slg, 3),
         }
+
+        # Free memory
+        del data
+        del ab_df
+        del hit_df
+        gc.collect()
+
+        return stats
 
 
 # ---------------------------------------------------------------------------
@@ -878,7 +935,7 @@ def fetch_percentile_ranks(
 # ---------------------------------------------------------------------------
 
 
-def fetch_year_fangraphs(yr: int, player_type: str) -> pd.DataFrame | None:
+def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd.DataFrame | None:
     """
     Blocking helper: fetch one year of FanGraphs pitching or batting stats.
 
@@ -888,13 +945,18 @@ def fetch_year_fangraphs(yr: int, player_type: str) -> pd.DataFrame | None:
     """
     try:
         fn = pitching_stats if player_type == "pitcher" else batting_stats
+        log.info(f"FanGraphs: Requesting {player_type} stats for {yr}...")
         df = fn(yr, yr, qual=1)
         if df is not None and not df.empty:
-            df = df.copy()
-            df["_year"] = yr
-            return df
-    except Exception:
-        pass
+            df = _name_match(df, first, last)
+            if not df.empty:
+                log.info(f"FanGraphs: Found {first} {last} for {player_type} in {yr}.")
+                df = df.copy()
+                df["_year"] = yr
+                return df
+        log.warning(f"FanGraphs: Returned empty dataframe for {player_type} in {yr}.")
+    except Exception as exc:
+        log.error(f"FanGraphs Error [{player_type} {yr}]: {exc}", exc_info=True)
     return None
 
 

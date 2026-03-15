@@ -4,7 +4,7 @@
 #
 
 app = 'harry-bot-discord'
-primary_region = 'ewr'
+primary_region = 'iad'
 
 [build]
   dockerfile = 'Dockerfile'
@@ -16,6 +16,6 @@ primary_region = 'ewr'
   app = 'python main.py'
 
 [[vm]]
-  memory = '1g'
+  memory = '2g'
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 2048

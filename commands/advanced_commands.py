@@ -245,7 +245,9 @@ class AdvancedCommands(commands.Cog):
 
         async def _bounded(yr: int, player_type: str):
             async with sem:
-                return player_type, await asyncio.to_thread(fetch_year_fangraphs, yr, player_type)
+                return player_type, await asyncio.to_thread(
+                    fetch_year_fangraphs, yr, player_type, first_name.strip(), last_name.strip()
+                )
 
         tasks = [_bounded(yr, t) for yr in years for t in ("pitcher", "batter")]
 
