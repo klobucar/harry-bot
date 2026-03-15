@@ -18,7 +18,7 @@ HARRY_ERRORS: list[str] = [
     "Wild thing, I think I love you — but I want to know for sure. And right now I've got nothing.",
     "How can these guys not get excited about baseball? The API sure isn't.",
     "Strike two! ...that was actually ball four, but there's no data either way.",
-    "The Indians have managed to lose this one before it even started. Empty dataset.",
+    "The Guardians have managed to lose this one before it even started. Empty dataset.",
     "He is GONE! ...just like the data you were looking for. Completely gone.",
     "I don't know if that's a good pitch or a bad pitch, because I can't find any pitches at all.",
     "Monty, tell 'em what we've got. Monty: nothing. Right.",

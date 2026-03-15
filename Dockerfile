@@ -1,8 +1,8 @@
 # We use a multi-stage build: one stage to sync dependencies with uv, and the runtime stage to run the app.
 
 # --- Stage 1: Build & Sync ---
-FROM ghcr.io/astral-sh/uv:0.6.3-python3.14-bookworm-slim AS build
-
+FROM cgr.dev/chainguard/python:latest-dev AS build
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
@@ -12,8 +12,9 @@ WORKDIR /app
 COPY uv.lock pyproject.toml ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy project source and install the project itself
-COPY . .
+# Copy project source
+COPY *.py ./
+COPY commands/ commands/
 RUN uv sync --frozen --no-dev
 
 

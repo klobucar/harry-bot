@@ -353,6 +353,7 @@ _STADIUM_TO_TEAM_CODE: dict[str, str] = {
     "dodgers": "LAD",
     "giants": "SF",
     "indians": "CLE",  # Guardians still use CLE in Statcast
+    "guardians": "CLE",  # Indians still use CLE in Statcast
     "mariners": "SEA",
     "marlins": "MIA",
     "mets": "NYM",
@@ -444,10 +445,10 @@ def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
     """
     # Fetch all pitchers with low minP so fringe guys aren't excluded
     speed_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(
-        year, minP=10, arsenal_type="average_speed"
+        year, minP=10, arsenal_type="avg_speed"
     )
     spin_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(
-        year, minP=10, arsenal_type="average_spin"
+        year, minP=10, arsenal_type="avg_spin"
     )
     usage_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(year, minP=10, arsenal_type="n_")
 
@@ -463,35 +464,40 @@ def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
     if speed_row.empty:
         raise ValueError(f"No arsenal data for pitcher_id={pitcher_id} in {year}.")
 
-    # Each row has columns like FF, SL, CH, CU, SI, FC ... for each pitch type
-    # Columns that are pitch-type names (skip player metadata cols)
-    meta_cols = {"pitcher", "player_name", "team_name_abbrev", "n_", "n_ff", "year"}
-    pitch_cols = [
-        c
-        for c in speed_row.columns
-        if c not in meta_cols
-        and not c.startswith("n_")
-        and not c.startswith("team")
-        and speed_row[c].notna().any()
-    ]
+    # The columns in 'speed_row' are formatted like 'ff_avg_speed', 'sl_avg_speed', etc.
+    # We find all pitches by looking for the '_avg_speed' suffix.
+    prefixes = [c.replace("_avg_speed", "") for c in speed_row.columns if c.endswith("_avg_speed")]
+
+    # First, calculate total pitches so we can compute true usage percentages
+    total_pitches = 0
+    for prefix in prefixes:
+        usage_col = f"n_{prefix}"
+        if usage_col in usage_row.columns:
+            val = usage_row[usage_col].iloc[0]
+            if pd.notna(val):
+                total_pitches += float(val)
 
     results: list[dict] = []
-    for col in pitch_cols:
-        mph_val = speed_row[col].iloc[0] if col in speed_row.columns else float("nan")
-        spin_val = spin_row[col].iloc[0] if col in spin_row.columns else float("nan")
-        usage_col = f"n_{col.lower()}"
+    for prefix in prefixes:
+        speed_col = f"{prefix}_avg_speed"
+        spin_col = f"{prefix}_avg_spin"
+        usage_col = f"n_{prefix}"
+
+        mph_val = speed_row[speed_col].iloc[0] if speed_col in speed_row.columns else float("nan")
+        spin_val = spin_row[spin_col].iloc[0] if spin_col in spin_row.columns else float("nan")
         usage_val = usage_row[usage_col].iloc[0] if usage_col in usage_row.columns else float("nan")
 
-        # Skip pitch types with no real data
-        if pd.isna(mph_val):
+        if pd.isna(mph_val) or pd.isna(usage_val) or total_pitches == 0:
             continue
+
+        pct = (float(usage_val) / total_pitches) * 100
 
         results.append(
             {
-                "pitch": col.upper(),
+                "pitch": prefix.upper(),
                 "mph": float(mph_val),
                 "spin": float(spin_val) if not pd.isna(spin_val) else 0.0,
-                "usage": float(usage_val) * 100 if not pd.isna(usage_val) else 0.0,
+                "usage": pct,
             }
         )
 

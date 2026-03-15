@@ -1,20 +1,21 @@
-# fly.toml app configuration file generated for harry-bot
+# fly.toml app configuration file generated for harry-bot-discord on 2026-03-15T08:04:50-07:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'harry-bot'
-primary_region = 'sjc'
+app = 'harry-bot-discord'
+primary_region = 'ewr'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  # Matplotlib non-interactive backend
-  MPLBACKEND = "Agg"
+  MPLBACKEND = 'Agg'
 
-# We run this as a worker process, NOT a web service.
-# DO NOT declare an [http_service] block, otherwise Fly will try to route web traffic to it
-# and will restart the container when it fails health checks.
 [processes]
-  app = "python main.py"
+  app = 'python main.py'
+
+[[vm]]
+  memory = '1g'
+  cpus = 1
+  memory_mb = 1024
