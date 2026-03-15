@@ -15,14 +15,12 @@ import logging
 import os
 import sys
 
-# Set the non-interactive backend BEFORE pyplot is imported anywhere else.
-# This must happen before any other project import that might pull in pyplot.
+# --- Matplotlib Memory Optimization ---
+# Force matplotlib to use the headless 'Agg' backend.
+# This must happen before any other module imports matplotlib.pyplot.
 import matplotlib
-
 matplotlib.use("Agg")
-
-import pybaseball
-import pybaseball.cache
+# --------------------------------------
 
 from bot import HarryBot
 
@@ -41,11 +39,6 @@ def _configure_logging() -> None:
 
 def main() -> None:
     _configure_logging()
-
-    # Enable pybaseball's disk cache to reduce repeat network calls.
-    # Called here (not at import time) so test suites can import statcast.py
-    from pybaseball import cache
-    cache.enable()
 
     token = os.environ.get("DISCORD_TOKEN")
     if not token:

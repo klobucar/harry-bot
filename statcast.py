@@ -17,7 +17,6 @@ from datetime import date, timedelta
 from functools import wraps
 from io import BytesIO
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
 # --- Pybaseball Memory Optimization ---
@@ -45,58 +44,99 @@ def fast_read_json(*args, **kwargs):
 pd.read_json = fast_read_json
 # --------------------------------------
 
-import pybaseball
-import requests
-from matplotlib.figure import Figure
-from pybaseball import (
-    fg_batting_data,
-    fg_pitching_data,
-    playerid_lookup,
-    plotting,
-    schedule_and_record,
-    statcast_batter,
-    statcast_batter_exitvelo_barrels,
-    statcast_batter_percentile_ranks,
-    statcast_pitcher,
-    statcast_pitcher_percentile_ranks,
-    statcast_pitcher_pitch_arsenal,
-)
-from pybaseball import (
-    standings as pb_standings,
-)
-
 from utils import current_year
 
 import os
-_cache_dir = os.environ.get(
-    "PYBASEBALL_CACHE",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pybaseball_cache")
-)
-if not os.path.exists(_cache_dir):
-    os.makedirs(_cache_dir, exist_ok=True)
-pybaseball.cache.config.cache_directory = _cache_dir
+
+# --- Lazy Loading Sentinels ---
+# These are populated by _init_pybaseball() on first use.
+# Using None allows them to be mock.patch-ed by tests to skip real imports.
+fg_batting_data = None
+fg_pitching_data = None
+playerid_lookup = None
+plotting = None
+schedule_and_record = None
+statcast_batter = None
+statcast_batter_exitvelo_barrels = None
+statcast_batter_percentile_ranks = None
+statcast_pitcher = None
+statcast_pitcher_percentile_ranks = None
+statcast_pitcher_pitch_arsenal = None
+standings = None  # referenced via pb_standings in standings() logic
+
+_pybaseball_initialized = False
+
+# Matplotlib sentinels
+plt = None
+Figure = None
+
+def _init_pybaseball():
+    """Lazy initialization of pybaseball to save startup memory."""
+    global fg_batting_data, fg_pitching_data, playerid_lookup, plotting, schedule_and_record
+    global statcast_batter, statcast_batter_exitvelo_barrels, statcast_batter_percentile_ranks
+    global statcast_pitcher, statcast_pitcher_percentile_ranks, statcast_pitcher_pitch_arsenal
+    global standings, plt, Figure, _pybaseball_initialized
+
+    # If already fully initialized, return. 
+    # Individual checks below handle cases where some parts are mocked.
+    if _pybaseball_initialized:
+        return
+    
+    import pybaseball
+    
+    _cache_dir = os.environ.get(
+        "PYBASEBALL_CACHE",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pybaseball_cache")
+    )
+    if not os.path.exists(_cache_dir):
+        os.makedirs(_cache_dir, exist_ok=True)
+    
+    pybaseball.cache.config.cache_directory = _cache_dir
+    pybaseball.cache.enable()
+    
+    # FanGraphs actively blocks default Python/Requests User-Agents with a 403 Forbidden.
+    # We monkeypatch the requests.Session to always send a real browser User-Agent globally.
+    import requests
+    _orig_request = requests.Session.request
+    
+    @wraps(_orig_request)
+    def _mock_request(self, method, url, **kwargs):
+        kwargs.setdefault("headers", {})
+        kwargs["headers"]["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        return _orig_request(self, method, url, **kwargs)
+    
+    requests.Session.request = _mock_request
+    
+    # Export names to globals ONLY if they are not already set (e.g. by a mock)
+    if fg_batting_data is None: fg_batting_data = pybaseball.fg_batting_data
+    if fg_pitching_data is None: fg_pitching_data = pybaseball.fg_pitching_data
+    if playerid_lookup is None: playerid_lookup = pybaseball.playerid_lookup
+    if plotting is None: plotting = pybaseball.plotting
+    if schedule_and_record is None: schedule_and_record = pybaseball.schedule_and_record
+    if statcast_batter is None: statcast_batter = pybaseball.statcast_batter
+    if statcast_batter_exitvelo_barrels is None: statcast_batter_exitvelo_barrels = pybaseball.statcast_batter_exitvelo_barrels
+    if statcast_batter_percentile_ranks is None: statcast_batter_percentile_ranks = pybaseball.statcast_batter_percentile_ranks
+    if statcast_pitcher is None: statcast_pitcher = pybaseball.statcast_pitcher
+    if statcast_pitcher_percentile_ranks is None: statcast_pitcher_percentile_ranks = pybaseball.statcast_pitcher_percentile_ranks
+    if statcast_pitcher_pitch_arsenal is None: statcast_pitcher_pitch_arsenal = pybaseball.statcast_pitcher_pitch_arsenal
+    if standings is None: standings = pybaseball.standings
+
+    # Initialize Matplotlib
+    import matplotlib.pyplot as plt_mod
+    from matplotlib.figure import Figure as Figure_cls
+    if plt is None: plt = plt_mod
+    if Figure is None: Figure = Figure_cls
+
+    _pybaseball_initialized = True
+
 
 # ---------------------------------------------------------------------------
 # Setup & Configuration
 # ---------------------------------------------------------------------------
 
-# Enable pybaseball's internal cache to avoid API rate limits (e.g. FanGraphs)
-# and dramatically speed up repeated lookups for the same player/season.
-pybaseball.cache.enable()
-
-# FanGraphs actively blocks default Python/Requests User-Agents with a 403 Forbidden.
-# We monkeypatch the requests.Session to always send a real browser User-Agent globally.
-_orig_request = requests.Session.request
-
-@wraps(_orig_request)
-def _mock_request(self, method, url, **kwargs):
-    kwargs.setdefault("headers", {})
-    kwargs["headers"]["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    return _orig_request(self, method, url, **kwargs)
-
-requests.Session.request = _mock_request
 
 log = logging.getLogger("harry")
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -143,6 +183,7 @@ def resolve_player_id(first: str, last: str) -> int | None:
     Uses fuzzy matching so minor typos (e.g. "Tarki" → "Tarik") still resolve.
     Returns the top match's key_mlbam integer, or None if nothing is found.
     """
+    _init_pybaseball()
     result: pd.DataFrame = playerid_lookup(last, first, fuzzy=True)
     if result.empty:
         return None
@@ -162,6 +203,7 @@ def fetch_player_mlb_years(first: str, last: str) -> tuple[int, int]:
     Falls back to (current_year - 3, current_year) if the data is missing.
     """
     cy = current_year()
+    _init_pybaseball()
     result: pd.DataFrame = playerid_lookup(last, first, fuzzy=True)
     if result.empty:
         return (cy - 3, cy)
@@ -197,6 +239,8 @@ def plot_to_buffer(data: pd.DataFrame, title: str, colorby: str = "pitch_type") 
     """
     if data is None or data.empty:
         raise ValueError("Cannot plot an empty dataset.")
+
+    _init_pybaseball()
 
     # Guard against NaN in the column we're colouring by (most commonly pitch_type).
     # pybaseball's plot_strike_zone does a dict lookup on each value and crashes on NaN.
@@ -235,6 +279,7 @@ def fetch_pitcher_zone(player_id: int, year: int, player_name: str) -> BytesIO:
 
     Raises ValueError if no data exists for the player/year.
     """
+    _init_pybaseball()
     start_dt, end_dt = season_range(year)
     data: pd.DataFrame = statcast_pitcher(start_dt, end_dt, player_id=player_id)
 
@@ -251,6 +296,7 @@ def fetch_batter_zone(player_id: int, year: int, player_name: str) -> BytesIO:
 
     Raises ValueError if no data exists for the player/year.
     """
+    _init_pybaseball()
     start_dt, end_dt = season_range(year)
     data: pd.DataFrame = statcast_batter(start_dt, end_dt, player_id)
 
@@ -274,6 +320,7 @@ def fetch_matchup_zone(
     Raises ValueError if the batter has no data, or if the two players never
     faced each other in the given season.
     """
+    _init_pybaseball()
     start_dt, end_dt = season_range(year)
     data: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
 
@@ -301,6 +348,7 @@ def compute_matchup_stats(
     Returns a dict with keys: pa, ab, hits, strikeouts, batting_avg.
     Raises ValueError if no matchup data is found.
     """
+    _init_pybaseball()
     start_dt, end_dt = season_range(year)
     data: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
 
@@ -398,7 +446,7 @@ def _load_known_stadiums() -> frozenset[str]:
         )
 
 
-_KNOWN_STADIUMS: frozenset[str] = _load_known_stadiums()
+_KNOWN_STADIUMS: frozenset[str] | None = None
 
 
 def _normalize_stadium(name: str) -> str:
@@ -410,6 +458,10 @@ def _normalize_stadium(name: str) -> str:
       2. Apply franchise rename aliases (guardians → indians)
       3. Fall back to "generic" if still not in the known set
     """
+    global _KNOWN_STADIUMS
+    if _KNOWN_STADIUMS is None:
+        _KNOWN_STADIUMS = _load_known_stadiums()
+
     key = name.lower().replace(" ", "_").replace("-", "_")
     key = _STADIUM_ALIASES.get(key, key)
     return key if key in _KNOWN_STADIUMS else "generic"
@@ -465,6 +517,7 @@ def fetch_spray_chart(
 
     Raises ValueError if no batted-ball data found.
     """
+    _init_pybaseball()
     start_dt, end_dt = season_range(year)
     data: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
 
@@ -526,6 +579,7 @@ def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
     Returns a list of dicts with keys: pitch, mph, spin, usage.
     Raises ValueError if the pitcher doesn't appear in arsenal data.
     """
+    _init_pybaseball()
     # Fetch all pitchers with low minP so fringe guys aren't excluded
     speed_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(
         year, minP=10, arsenal_type="avg_speed"
@@ -610,8 +664,16 @@ def fetch_player_stats(first: str, last: str, year: int) -> dict:
     Returns dict with keys: type, team, stats.
     Raises ValueError if player not found in either leaderboard.
     """
+    _init_pybaseball()
     # Try pitching first
-    pitch_df = pitching_stats(year, qual=1)
+    try:
+        pitch_df = fg_pitching_data(year, qual=1)
+    except ValueError as e:
+        if "columns passed" in str(e):
+            pitch_df = pd.DataFrame()
+        else:
+            raise
+
     if pitch_df is not None and not pitch_df.empty:
         row = _name_match(pitch_df, first, last)
         if not row.empty:
@@ -623,7 +685,14 @@ def fetch_player_stats(first: str, last: str, year: int) -> dict:
             }
 
     # Try batting
-    bat_df = batting_stats(year, qual=1)
+    try:
+        bat_df = fg_batting_data(year, qual=1)
+    except ValueError as e:
+        if "columns passed" in str(e):
+            bat_df = pd.DataFrame()
+        else:
+            raise
+
     if bat_df is not None and not bat_df.empty:
         row = _name_match(bat_df, first, last)
         if not row.empty:
@@ -651,6 +720,7 @@ def fetch_career_stats(first: str, last: str) -> dict:
 
     Raises ValueError if player not found in either pitching or batting data.
     """
+    _init_pybaseball()
     cy = current_year()
 
     try:
@@ -720,7 +790,8 @@ def fetch_standings(year: int) -> list[tuple[str, str]]:
     Returns a list of (division_name, formatted_table) tuples, one per division.
     Raises ValueError if no data is returned.
     """
-    data = pb_standings(year)
+    _init_pybaseball()
+    data = standings(year)
 
     if not data:
         raise ValueError(f"No standings data available for {year}.")
@@ -755,6 +826,7 @@ def fetch_schedule(team: str, year: int) -> tuple[str, str]:
     the last 5 completed games and next 5 scheduled games.
     Raises ValueError if no schedule data found.
     """
+    _init_pybaseball()
     df: pd.DataFrame = schedule_and_record(year, team)
 
     if df is None or df.empty:
@@ -811,6 +883,7 @@ def fetch_hot_cold(
     start_str = start_dt.strftime("%Y-%m-%d")
     end_str = end_dt.strftime("%Y-%m-%d")
 
+    _init_pybaseball()
     if player_type == "pitcher":
         data: pd.DataFrame = statcast_pitcher(start_str, end_str, player_id=player_id)
     else:
@@ -885,6 +958,7 @@ def fetch_exit_velo(player_id: int, year: int, player_name: str) -> dict[str, st
 
     Raises ValueError if the player doesn't appear in the exit velo leaderboard.
     """
+    _init_pybaseball()
     data: pd.DataFrame = statcast_batter_exitvelo_barrels(year, minBBE=25)
 
     if data is None or data.empty:
@@ -948,6 +1022,7 @@ def fetch_percentile_ranks(
     Returns dict of stat_name → "NN%" (formatted percentile).
     Raises ValueError if player not found.
     """
+    _init_pybaseball()
     if player_type == "pitcher":
         data: pd.DataFrame = statcast_pitcher_percentile_ranks(year)
         cols = _PITCHER_PERCENTILE_COLS
@@ -991,6 +1066,7 @@ def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd
     by the caller (asyncio.gather + Semaphore).
     """
     try:
+        _init_pybaseball()
         fn = fg_pitching_data if player_type == "pitcher" else fg_batting_data
         log.info(f"FanGraphs: Requesting {player_type} stats for {yr}...")
         
@@ -1122,6 +1198,7 @@ def fetch_leaderboard(stat: str, year: int, player_type: str = "auto") -> list[d
         ]
 
     boards: list[list[dict]] = []
+    _init_pybaseball()
 
     if player_type in ("pitcher", "auto"):
         try:

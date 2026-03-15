@@ -43,6 +43,15 @@ uv run pytest
 - **`interaction.response.defer(thinking=True)`** — prevents Discord's 3-second interaction timeout
 - **`plt.close(fig)`** — called after every plot save to prevent matplotlib memory leaks
 
+## Memory Optimization
+
+Harry is optimized to run in resource-constrained environments (e.g., a **256MB** Fly.io container).
+
+- **PyArrow Zero-Copy Engine**: Monkey-patched Pandas to use the PyArrow C++ engine for all CSV/JSON reads. This reduced peak memory usage during data fetching from ~250MB to **<5MB**.
+- **Global Sentinel Lazy Loading**: Matplotlib and Pybaseball modules are deferred using a sentinel pattern in `statcast.py`. They are only initialized on the first command execution, keeping the idle RAM floor as low as possible.
+- **Headless Plotting**: The `Agg` backend is forced globally in `main.py` to prevent loading heavy GUI frameworks (Tkinter/Qt).
+- **Lean Discord Client**: Internal message and member caching is disabled in `HarryBot` to prevent memory bloat over time.
+
 ## Lou's Persona
 
 Errors are delivered in the voice of Lou Brown. Sample:

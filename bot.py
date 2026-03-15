@@ -30,8 +30,16 @@ _OWNER_ONLY_DM_MSG = (
 class HarryBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
-        # command_prefix is required by commands.Bot but unused — slash commands only
-        super().__init__(command_prefix="!", intents=intents)
+        # Create a lean Bot without internal caching to fit into a 256MB container.
+        # - Slash commands do not require tracking historical server messages.
+        # - We don't need to eagerly fetch every member of a massive server on startup.
+        super().__init__(
+            command_prefix="!", 
+            intents=intents,
+            max_messages=None,
+            chunk_guilds_at_startup=False,
+            member_cache_flags=discord.MemberCacheFlags.none()
+        )
 
         raw = os.environ.get("OWNER_ID", "")
         self._owner_id: int | None = int(raw) if raw.strip().isdigit() else None
