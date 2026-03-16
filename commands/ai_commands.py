@@ -20,27 +20,28 @@ from persona import harry_error
 log = logging.getLogger("harry")
 
 SYSTEM_INSTRUCTION = (
-    "You are Harry Doyle, a veteran, cynical broadcaster. You are reading from the "
-    "'Wally Holland Encyclopedia of Useless Baseball Information.' "
-    
-    "LOGIC FRAMEWORKS (Vary these for every stat):"
-    "1. THE CHRONOLOGICAL TRAP: Stats true only because of when a player lived (e.g., Babe Ruth vs. the Pitch Clock)."
-    "2. THE HYPER-FILTER: Stack 4+ variables (e.g., [Player] + [Day] + [Inning] + [Turf] + [Opponent City Pop])."
-    "3. THE SPURIOUS CORRELATION: Tie performance to unrelated factors (e.g., current US President, stock market, geography)."
-    "4. THE ANACHRONISTIC COMPARISON: Compare modern stars to 19th-century defunct teams (e.g., the 1884 Wilmington Quicksteps)."
-    "5. THE GEOGRAPHIC ABSURDITY: Use specific stadium quirks or city-specific trivia."
+    "You are Harry Doyle, the cynical voice of baseball. You are reading from the "
+    "'Wally Holland Almanac of Meaningless Precision.' "
 
-    "STRICT NEGATIVE CONSTRAINTS (CRITICAL):"
-    "1. NEVER explain the logic. "
-    "2. NEVER mention 'Wally Holland', 'Chronological Trap', or any logic framework. "
-    "3. NEVER use phrases like 'This is possible because...' or 'Interestingly...'. "
-    "4. NO PREAMBLE. NO EMOJIS. NO CHITCHAT."
-    
-    "STRICT REQUIREMENTS:"
-    "- Format: **Player Name** [Stat]. No preamble. No emojis."
-    "- Tone: Deadpan, unimpressed. Use 'Wally Holland' logic (precision for the sake of nothing)."
-    "- Truth: Every stat must be mathematically or historically verifiable, even if the premise is absurd."
-    "- Length: Complete responses and no less than 100 characters and no more than 300 characters."
+    "### THE GOAL\n"
+    "Generate one technically true, absurdly specific, and mundane MLB stat. "
+    "To do this, you MUST stack at least 2 layers of filters. "
+
+    "### FILTER TOOLKIT (Pick 2+ to stack for every stat and more is great):\n"
+    "- HANDEDNESS: Left/Right handed batter or pitcher, switch hitter.\n"
+    "- POSITION: Catcher, first base, second base, third base, shortstop, left field, center field, right field, pitcher, designated hitter.\n"
+    "- OUTCOME: Wins, losses, saves, holds, blown saves, walks, hits, home runs, runs, RBIs, etc.\n"
+    "- CALENDAR: Specific day of the week, half of the season, or month.\n"
+    "- ARCHITECTURE: Dome stadiums, retractable roofs, grass vs. turf, or brick backstops.\n"
+    "- GEOGRAPHY: ZIP codes, distance from landmarks, or city population.\n"
+    "- TECHNOLOGY/MUNDANE: Distance from a post office, presence of WiFi, local transit access, east of the mississippi, etc.\n"
+    "- DEFUNCT COMPARISON: Modern player vs. a team from the 1800s (e.g., 1899 Spiders, 1884 Quicksteps).\n"
+
+    "### THE CONSTRAINTS:\n"
+    "- NO ZERO STATS: Don't tell me what didn't happen. Tell me a weird total that DID happen.\n"
+    "- ONE COMPLETE SENTENCE: Deadpan delivery. No preamble, no 'because', no explanation.\n"
+    "- STOP IMMEDIATELY: Finish the sentence and shut up. Do not yap.\n"
+    "- FORMAT: **Player or Team Name** [Stat sentence]."
 )
 
 class AICommands(commands.Cog):
@@ -71,17 +72,27 @@ class AICommands(commands.Cog):
         await interaction.response.defer(thinking=True)
         log.info("/junkstats request")
 
+        import random
+
+        # All the eras to keep the bot's brain moving
+        eras = [
+            "the Pioneer Era", "the Deadball Era", "the Golden Age", 
+            "the Baby Boomer Era", "the Artificial Turf Era", 
+            "the Free Agency Era", "the Steroid Era", "the Statcast Era"
+        ]
+
         try:
             # Using generate_content with the new SDK
             response = await self.bot.loop.run_in_executor(
                 None,
                 lambda: client.models.generate_content(
-                    model="gemini-2.5-flash-lite",
-                    contents="Give me a weird baseball stat.",
+                    model="gemini-3.1-flash-lite-preview",
+                    contents=f"Give me a strange and mundane baseball stat from {random.choice(eras)}",
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
-                        max_output_tokens=100,
-                        temperature=0.8,
+                        max_output_tokens=95, # Tightening this prevents the "explanation" from fitting
+                        temperature=0.85,
+                        top_p=0.95,
                     ),
                 ),
             )
@@ -93,14 +104,16 @@ class AICommands(commands.Cog):
             ):
                 fact = fact[1:-1]
 
-            if len(fact) > 200:
-                fact = fact[:197] + "..."
-
             await interaction.followup.send(f"> {fact}")
 
         except Exception as exc:
             log.exception("/junkstats error")
-            await interaction.followup.send(harry_error(str(exc)))
+            # Swallow technical details for Gemini/API errors to keep Harry in character.
+            from google.genai import errors
+            if isinstance(exc, errors.ClientError):
+                await interaction.followup.send(harry_error())
+            else:
+                await interaction.followup.send(harry_error(str(exc)))
 
 
 async def setup(bot: commands.Bot) -> None:

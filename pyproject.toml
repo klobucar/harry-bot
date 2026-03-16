@@ -10,7 +10,7 @@ dependencies = [
     "pandas>=3.0.1",
     "pyarrow>=23.0.1",
     "pybaseball>=2.2.7",
-    "google-genai>=1.6.8",
+    "google-genai>=1.67.0",
 ]
 
 [project.scripts]

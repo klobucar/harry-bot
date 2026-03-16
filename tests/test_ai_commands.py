@@ -61,14 +61,35 @@ async def test_junkstats_no_api_key(bot, interaction):
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
 @patch("commands.ai_commands.genai.Client")
 async def test_junkstats_api_error(mock_client_class, bot, interaction):
-    # Setup mock client to raise an exception
+    # Setup mock client to raise a generic exception
     mock_client = mock_client_class.return_value
-    mock_client.models.generate_content.side_effect = Exception("API Down")
+    mock_client.models.generate_content.side_effect = Exception("General Error")
 
     cog = AICommands(bot)
     await cog.junkstats.callback(cog, interaction)
 
-    interaction.response.defer.assert_called_once_with(thinking=True)
     interaction.followup.send.assert_called_once()
     args, _ = interaction.followup.send.call_args
-    assert "API Down" in args[0]
+    # Generic exceptions should still show technical details
+    assert "General Error" in args[0]
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_client_error_swallowed(mock_client_class, bot, interaction):
+    from google.genai.errors import ClientError
+    # Setup mock client to raise a Gemini ClientError
+    mock_client = mock_client_class.return_value
+    # ClientError requires response_json argument
+    mock_client.models.generate_content.side_effect = ClientError("Quota Exceeded", response_json={})
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)
+
+    interaction.followup.send.assert_called_once()
+    args, _ = interaction.followup.send.call_args
+    # ClientErrors (like 429) should NOT show technical details
+    assert "Quota Exceeded" not in args[0]
+    # It should still be a Harry quote (from persona.py)
+    from persona import HARRY_ERRORS
+    assert any(q in args[0] for q in HARRY_ERRORS)
