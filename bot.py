@@ -11,7 +11,6 @@ import logging
 import os
 
 import discord
-from discord import app_commands
 from discord.ext import commands
 
 log = logging.getLogger("harry")
@@ -34,7 +33,7 @@ class HarryBot(commands.Bot):
         # - Slash commands do not require tracking historical server messages.
         # - We don't need to eagerly fetch every member of a massive server on startup.
         super().__init__(
-            command_prefix="!", 
+            command_prefix="!",
             intents=intents,
             max_messages=None,
             chunk_guilds_at_startup=False,
@@ -50,8 +49,8 @@ class HarryBot(commands.Bot):
             )
 
         # Global slash-command check: block non-owner slash commands in DMs.
-        @self.tree.interaction_check
-        async def _owner_dm_check(interaction: discord.Interaction) -> bool:
+        @self.tree.interaction_check  # ty: ignore
+        async def _owner_dm_check(interaction) -> bool:
             if (
                 self._owner_id is not None
                 and isinstance(interaction.channel, discord.DMChannel)
@@ -64,7 +63,7 @@ class HarryBot(commands.Bot):
             return True
 
     async def setup_hook(self) -> None:
-        from commands import setup  # noqa: PLC0415  (deferred to avoid circular import)
+        from commands import setup
 
         await setup(self)
 

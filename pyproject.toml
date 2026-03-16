@@ -60,6 +60,11 @@ ignore = [
     "PLR2004", # magic values — noisy in sports/stat code
     "PLR0913", # too many arguments — common in command handlers
     "SIM108",  # ternary vs if/else — subjective
+    "PLC0415", # local imports — required for lazy loading Matplotlib/Pybaseball
+    "PLW0603", # global statement — used for lazy loading state
+    "E402",    # module-level import — monkeypatching must happen early
+    "PLR0912", # too many branches — unavoidable in some setup functions
+    "PLR0915", # too many statements — unavoidable in some setup functions
 ]
 
 [tool.ruff.lint.isort]

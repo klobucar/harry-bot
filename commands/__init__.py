@@ -14,14 +14,14 @@ async def setup(bot: HarryBot) -> None:
     """Add all command Cogs to the bot. Called from HarryBot.setup_hook()."""
     # Deferred imports avoid circular dependency: each commands module imports
     # HarryBot from bot.py, which would create a circular top-level import.
-    from commands.advanced_commands import AdvancedCommands  # noqa: PLC0415
-    from commands.info_commands import InfoCommands  # noqa: PLC0415
-    from commands.matchup_commands import MatchupCommands  # noqa: PLC0415
-    from commands.meta_commands import MetaCommands  # noqa: PLC0415
-    from commands.mlb_commands import MLBCommands  # noqa: PLC0415
-    from commands.stats_commands import StatsCommands  # noqa: PLC0415
-    from commands.visual_commands import VisualCommands  # noqa: PLC0415
-    from commands.zone_commands import ZoneCommands  # noqa: PLC0415
+    from commands.advanced_commands import AdvancedCommands
+    from commands.info_commands import InfoCommands
+    from commands.matchup_commands import MatchupCommands
+    from commands.meta_commands import MetaCommands
+    from commands.mlb_commands import MLBCommands
+    from commands.stats_commands import StatsCommands
+    from commands.visual_commands import VisualCommands
+    from commands.zone_commands import ZoneCommands
 
     await bot.add_cog(ZoneCommands(bot))
     await bot.add_cog(MatchupCommands(bot))

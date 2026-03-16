@@ -19,6 +19,7 @@ import sys
 # Force matplotlib to use the headless 'Agg' backend.
 # This must happen before any other module imports matplotlib.pyplot.
 import matplotlib
+
 matplotlib.use("Agg")
 # --------------------------------------
 
@@ -32,7 +33,7 @@ def _configure_logging() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    
+
     # Disable overly verbose pybaseball caching logs
     logging.getLogger("pybaseball").setLevel(logging.WARNING)
 

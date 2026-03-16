@@ -16,7 +16,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from persona import harry_error
-from statcast import fetch_spray_chart, resolve_player_id
+from statcast import fetch_hitter_hotzones, fetch_spray_chart, resolve_player_id
 from utils import validate_statcast_year
 
 log = logging.getLogger("harry")
@@ -94,3 +94,62 @@ class VisualCommands(commands.Cog):
 
         await interaction.followup.send(embed=embed, file=file)
         log.info(f"/spraychart completed for {player_name} ({year})")
+
+    @app_commands.command(
+        name="hotzones",
+        description="Show a batter's performance (BA) across the strike zone as a 3x3 thermal grid.",
+    )
+    @app_commands.describe(
+        first_name="Batter's first name",
+        last_name="Batter's last name",
+        year="Season year (e.g. 2024)",
+    )
+    async def hotzones(
+        self,
+        interaction: discord.Interaction,
+        first_name: str,
+        last_name: str,
+        year: int,
+    ) -> None:
+        if err := validate_statcast_year(year):
+            await interaction.response.send_message(harry_error(err), ephemeral=True)
+            return
+        await interaction.response.defer(thinking=True)
+
+        player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
+        log.info(f"/hotzones called: {player_name} ({year})")
+
+        try:
+            player_id: int | None = await asyncio.to_thread(
+                resolve_player_id, first_name.strip(), last_name.strip()
+            )
+            if player_id is None:
+                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                return
+
+            buf: BytesIO = await asyncio.to_thread(
+                fetch_hitter_hotzones, player_id, year, player_name
+            )
+
+        except ValueError as exc:
+            await interaction.followup.send(harry_error(str(exc)))
+            return
+        except Exception as exc:
+            log.exception("Unexpected error in /hotzones")
+            await interaction.followup.send(harry_error(str(exc)))
+            return
+
+        file = discord.File(fp=buf, filename="hotzones.png")
+        embed = discord.Embed(
+            title=f"🔥 Hitter Hot Zones: {player_name}",
+            description=(
+                f"**Season:** {year}\n"
+                "Strike zone (1-9) colored by Batting Average (Hits/AB)."
+            ),
+            color=discord.Color.from_rgb(220, 20, 60),  # crimson
+        )
+        embed.set_image(url="attachment://hotzones.png")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+
+        await interaction.followup.send(embed=embed, file=file)
+        log.info(f"/hotzones completed for {player_name} ({year})")
