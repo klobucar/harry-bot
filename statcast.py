@@ -709,6 +709,65 @@ def fetch_spray_chart(
 
 
 # ---------------------------------------------------------------------------
+# Stadium Info Helper
+# ---------------------------------------------------------------------------
+
+
+def fetch_stadium_info(team_alias: str) -> dict:
+    """
+    Fetch stadium name, location, and a visual outline for a given team.
+
+    Returns:
+        dict: {
+            "name": str,
+            "location": str,
+            "image": BytesIO
+        }
+    """
+    _init_pybaseball()
+    import matplotlib.pyplot as plt
+
+    stadium_key = _normalize_stadium(team_alias)
+    if stadium_key == "generic" and team_alias.lower() != "generic":
+        raise ValueError(f"Unknown team/stadium: {team_alias!r}")
+
+    # 1. Fetch metadata from mlbstadiums.csv
+    name = "Unknown Stadium"
+    location = "Unknown Location"
+    try:
+        pkg = importlib.resources.files("pybaseball") / "data" / "mlbstadiums.csv"
+        with importlib.resources.as_file(pkg) as p:
+            df = pd.read_csv(p)
+            row = df[df["team"] == stadium_key].iloc[0]
+            name = str(row["name"])
+            location = str(row["location"])
+    except Exception:
+        log.warning(f"Could not load stadium metadata for {stadium_key}")
+
+    # 2. Generate plot
+    # pybaseball.plotting.plot_stadium returns an Axes
+    ax = plotting.plot_stadium(stadium_key)
+    fig = ax.get_figure()
+    assert isinstance(fig, Figure)
+
+    buf = BytesIO()
+    try:
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=120)
+        buf.seek(0)
+    finally:
+        plt.close(fig)
+        del ax
+        del fig
+        gc.collect()
+
+    return {
+        "name": name,
+        "location": location,
+        "image": buf,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Pitch arsenal helper
 # ---------------------------------------------------------------------------
 

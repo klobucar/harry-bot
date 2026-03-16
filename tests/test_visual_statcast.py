@@ -22,6 +22,7 @@ from statcast import (
     fetch_pitcher_zone,
     fetch_schedule,
     fetch_spray_chart,
+    fetch_stadium_info,
     fetch_standings,
     fetch_year_fangraphs,
 )
@@ -341,3 +342,40 @@ def test_fetch_year_fangraphs_not_found_raises() -> None:
     ):
         result = fetch_year_fangraphs(2024, "pitcher", "nobody", "here")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# fetch_stadium_info
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_stadium_info_success() -> None:
+    real_fig = RealFigure()
+    mock_df = pd.DataFrame([
+        {"team": "detroit_tigers", "name": "Comerica Park", "location": "Detroit, MI"}
+    ])
+
+    with (
+        patch("statcast._normalize_stadium", return_value="detroit_tigers"),
+        patch("statcast.pd.read_csv", return_value=mock_df),
+        patch.object(statcast.plotting, "plot_stadium") as mock_plot,
+        patch.object(real_fig, "savefig"),
+    ):
+        mock_ax = MagicMock()
+        mock_ax.get_figure.return_value = real_fig
+        mock_plot.return_value = mock_ax
+
+        result = fetch_stadium_info("tigers")
+
+    assert result["name"] == "Comerica Park"
+    assert result["location"] == "Detroit, MI"
+    assert isinstance(result["image"], io.BytesIO)
+    mock_plot.assert_called_once_with("detroit_tigers")
+
+
+def test_fetch_stadium_info_unknown_raises() -> None:
+    with (
+        patch("statcast._normalize_stadium", return_value="generic"),
+        pytest.raises(ValueError, match="Unknown team/stadium"),
+    ):
+        fetch_stadium_info("wrong_team")

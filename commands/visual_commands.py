@@ -16,7 +16,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from persona import harry_error
-from statcast import fetch_hitter_hotzones, fetch_spray_chart, resolve_player_id
+from statcast import fetch_hitter_hotzones, fetch_spray_chart, fetch_stadium_info, resolve_player_id
 from utils import validate_statcast_year
 
 log = logging.getLogger("harry")
@@ -153,3 +153,37 @@ class VisualCommands(commands.Cog):
 
         await interaction.followup.send(embed=embed, file=file)
         log.info(f"/hotzones completed for {player_name} ({year})")
+
+    @app_commands.command(
+        name="stadium",
+        description="Show a ballpark's name, location, and visual outline.",
+    )
+    @app_commands.describe(team="Team abbreviation or name, e.g. DET, Yankees, Fenway")
+    async def stadium(
+        self,
+        interaction: discord.Interaction,
+        team: str,
+    ) -> None:
+        await interaction.response.defer(thinking=True)
+        log.info(f"/stadium called: {team}")
+
+        try:
+            info = await asyncio.to_thread(fetch_stadium_info, team)
+        except ValueError as exc:
+            await interaction.followup.send(harry_error(str(exc)))
+            return
+        except Exception as exc:
+            log.exception("Unexpected error in /stadium")
+            await interaction.followup.send(harry_error(str(exc)))
+            return
+
+        file = discord.File(fp=info["image"], filename="stadium.png")
+        embed = discord.Embed(
+            title=f"🏟️ {info['name']}",
+            description=f"**Location:** {info['location']}",
+            color=discord.Color.from_rgb(34, 139, 34),  # forest green
+        )
+        embed.set_image(url="attachment://stadium.png")
+        embed.set_footer(text="Data: Baseball Savant / pybaseball")
+
+        await interaction.followup.send(embed=embed, file=file)

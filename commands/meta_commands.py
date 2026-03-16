@@ -31,9 +31,14 @@ _COMMANDS = [
                 "Where a batter hits the ball on a stadium",
             ),
             (
+                "`/hotzones [first] [last] [year]`",
+                "3x3 thermal grid of a batter's BA in the zone",
+            ),
+            (
                 "`/matchupzone [p_first] [p_last] [b_first] [b_last] [year]`",
                 "Zone plot of one pitcher vs one batter",
             ),
+            ("`/stadium [team]`", "Ballpark name, location, and visual outline"),
         ],
     ),
     (
