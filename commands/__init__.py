@@ -15,6 +15,7 @@ async def setup(bot: HarryBot) -> None:
     # Deferred imports avoid circular dependency: each commands module imports
     # HarryBot from bot.py, which would create a circular top-level import.
     from commands.advanced_commands import AdvancedCommands
+    from commands.ai_commands import AICommands
     from commands.info_commands import InfoCommands
     from commands.matchup_commands import MatchupCommands
     from commands.meta_commands import MetaCommands
@@ -30,4 +31,5 @@ async def setup(bot: HarryBot) -> None:
     await bot.add_cog(InfoCommands(bot))
     await bot.add_cog(MLBCommands(bot))
     await bot.add_cog(AdvancedCommands(bot))
+    await bot.add_cog(AICommands(bot))
     await bot.add_cog(MetaCommands(bot))
