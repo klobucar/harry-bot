@@ -61,6 +61,7 @@ _COMMANDS = [
                 "`/leaderboard [stat] [year] (pitcher/batter)`",
                 "Top 10 players for any FanGraphs stat",
             ),
+            ("`/junkstats`", "Absurdly specific and weird baseball facts from Gemini"),
         ],
     ),
     (
