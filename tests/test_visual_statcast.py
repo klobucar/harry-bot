@@ -30,7 +30,7 @@ from statcast import (
 
 @pytest.fixture(autouse=True)
 def setup_statcast_globals():
-    """ Ensure statcast globals are not None for patching, even if _init_pybaseball is skipped. """
+    """Ensure statcast globals are not None for patching, even if _init_pybaseball is skipped."""
     # We set these on the module directly so they are available for both
     # patching and for the code's own use (like isinstance checks).
     old_fig = statcast.Figure
@@ -63,7 +63,7 @@ def mock_statcast_df() -> pd.DataFrame:
                 "plate_z": 2.5,
                 "hc_x": 125.0,
                 "hc_y": 180.0,
-                "home_team": "DET"
+                "home_team": "DET",
             },
             {
                 "zone": 1.0,
@@ -74,7 +74,7 @@ def mock_statcast_df() -> pd.DataFrame:
                 "plate_z": 2.6,
                 "hc_x": 130.0,
                 "hc_y": 190.0,
-                "home_team": "DET"
+                "home_team": "DET",
             },
             {
                 "zone": 5.0,
@@ -85,7 +85,7 @@ def mock_statcast_df() -> pd.DataFrame:
                 "plate_z": 2.0,
                 "hc_x": 120.0,
                 "hc_y": 170.0,
-                "home_team": "DET"
+                "home_team": "DET",
             },
         ]
     )
@@ -219,19 +219,23 @@ def test_fetch_spray_chart_success(mock_statcast_df: pd.DataFrame) -> None:
 
 def test_fetch_pitch_arsenal_returns_dict() -> None:
     # Statcast_pitcher_pitch_arsenal is called 3 times: speed, spin, usage
-    df = pd.DataFrame([
-        {"pitcher": 123456, "ff_avg_speed": 95.2, "sl_avg_speed": 85.1},
-    ])
-    spin_df = pd.DataFrame([
-        {"pitcher": 123456, "ff_avg_spin": 2400, "sl_avg_spin": 2600},
-    ])
-    usage_df = pd.DataFrame([
-        {"pitcher": 123456, "n_ff": 100, "n_sl": 50},
-    ])
+    df = pd.DataFrame(
+        [
+            {"pitcher": 123456, "ff_avg_speed": 95.2, "sl_avg_speed": 85.1},
+        ]
+    )
+    spin_df = pd.DataFrame(
+        [
+            {"pitcher": 123456, "ff_avg_spin": 2400, "sl_avg_spin": 2600},
+        ]
+    )
+    usage_df = pd.DataFrame(
+        [
+            {"pitcher": 123456, "n_ff": 100, "n_sl": 50},
+        ]
+    )
 
-    with (
-        patch("statcast.statcast_pitcher_pitch_arsenal", side_effect=[df, spin_df, usage_df])
-    ):
+    with patch("statcast.statcast_pitcher_pitch_arsenal", side_effect=[df, spin_df, usage_df]):
         result = fetch_pitch_arsenal(123456, 2024)
 
     assert len(result) == 2
@@ -254,14 +258,14 @@ def test_fetch_pitch_arsenal_empty_raises() -> None:
 
 def test_fetch_standings_success() -> None:
     # standings() returns a list of DataFrames
-    df_al_central = pd.DataFrame([
-        {"Tm": "DET", "W": 86, "L": 76, "W-L%": .531},
-        {"Tm": "CLE", "W": 92, "L": 70, "W-L%": .568},
-    ])
+    df_al_central = pd.DataFrame(
+        [
+            {"Tm": "DET", "W": 86, "L": 76, "W-L%": 0.531},
+            {"Tm": "CLE", "W": 92, "L": 70, "W-L%": 0.568},
+        ]
+    )
 
-    with (
-        patch("statcast.standings", return_value=[df_al_central])
-    ):
+    with patch("statcast.standings", return_value=[df_al_central]):
         result = fetch_standings(2024)
 
     assert isinstance(result, list)
@@ -285,13 +289,22 @@ def test_fetch_standings_empty_raises() -> None:
 def test_fetch_schedule_success() -> None:
     # schedule_and_record() returns a DataFrame
     # Need more rows to avoid index out of bounds if it slices
-    df = pd.DataFrame([
-        {"Date": "Friday, Mar 28", "Opp": "CLE", "W/L": "W", "R": 4, "RA": 1, "Boxscore": "box", "Attendance": 1000},
-    ] * 10)
+    df = pd.DataFrame(
+        [
+            {
+                "Date": "Friday, Mar 28",
+                "Opp": "CLE",
+                "W/L": "W",
+                "R": 4,
+                "RA": 1,
+                "Boxscore": "box",
+                "Attendance": 1000,
+            },
+        ]
+        * 10
+    )
 
-    with (
-        patch("statcast.schedule_and_record", return_value=df)
-    ):
+    with patch("statcast.schedule_and_record", return_value=df):
         result = fetch_schedule("DET", 2024)
 
     assert isinstance(result, tuple)
@@ -351,9 +364,9 @@ def test_fetch_year_fangraphs_not_found_raises() -> None:
 
 def test_fetch_stadium_info_success() -> None:
     real_fig = RealFigure()
-    mock_df = pd.DataFrame([
-        {"team": "detroit_tigers", "name": "Comerica Park", "location": "Detroit, MI"}
-    ])
+    mock_df = pd.DataFrame(
+        [{"team": "detroit_tigers", "name": "Comerica Park", "location": "Detroit, MI"}]
+    )
 
     with (
         patch("statcast._normalize_stadium", return_value="detroit_tigers"),
