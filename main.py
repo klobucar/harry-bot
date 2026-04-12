@@ -43,7 +43,8 @@ def main() -> None:
 
     token = os.environ.get("DISCORD_TOKEN")
     if not token:
-        logging.critical(
+        log = logging.getLogger("harry")
+        log.critical(
             "DISCORD_TOKEN environment variable is not set. "
             "Export it before running: export DISCORD_TOKEN=your_bot_token"
         )

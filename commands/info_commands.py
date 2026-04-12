@@ -40,7 +40,7 @@ class InfoCommands(commands.Cog):
         year: int = 2025,
     ) -> None:
         await interaction.response.defer(thinking=True)
-        log.info(f"/standings called: {year}")
+        log.info("/standings called: %d", year)
 
         try:
             divisions: list[tuple[str, str]] = await asyncio.to_thread(fetch_standings, year)
@@ -61,7 +61,7 @@ class InfoCommands(commands.Cog):
         embed.set_footer(text="Data: Baseball Reference via pybaseball")
 
         await interaction.followup.send(embed=embed)
-        log.info(f"/standings completed: {year}")
+        log.info("/standings completed: %d", year)
 
     # -----------------------------------------------------------------------
     # /schedule
@@ -83,7 +83,7 @@ class InfoCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         team_upper = team.strip().upper()
-        log.info(f"/schedule called: {team_upper} {year}")
+        log.info("/schedule called: %s %d", team_upper, year)
 
         try:
             past, upcoming = await asyncio.to_thread(fetch_schedule, team_upper, year)
@@ -106,4 +106,4 @@ class InfoCommands(commands.Cog):
         embed.set_footer(text="Data: Baseball Reference via pybaseball")
 
         await interaction.followup.send(embed=embed)
-        log.info(f"/schedule completed: {team_upper} {year}")
+        log.info("/schedule completed: %s %d", team_upper, year)

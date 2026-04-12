@@ -41,7 +41,7 @@ class MLBCommands(commands.Cog):
     async def roster(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
-        log.info(f"/roster: {team_up}")
+        log.info("/roster: %s", team_up)
 
         try:
             players: list[dict] = await asyncio.to_thread(fetch_roster, team_up)
@@ -84,7 +84,7 @@ class MLBCommands(commands.Cog):
     async def injury(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
-        log.info(f"/injury: {team_up}")
+        log.info("/injury: %s", team_up)
 
         try:
             players: list[dict] = await asyncio.to_thread(fetch_injuries, team_up)
@@ -123,7 +123,7 @@ class MLBCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
         days = max(1, min(days, 30))
-        log.info(f"/transactions: {team_up} last {days}d")
+        log.info("/transactions: %s last %dd", team_up, days)
 
         try:
             moves: list[dict] = await asyncio.to_thread(fetch_transactions, team_up, days)
@@ -152,7 +152,7 @@ class MLBCommands(commands.Cog):
     async def livescore(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
-        log.info(f"/livescore: {team_up}")
+        log.info("/livescore: %s", team_up)
 
         try:
             games: list[dict] = await asyncio.to_thread(fetch_live_scores, team_up)
@@ -187,7 +187,7 @@ class MLBCommands(commands.Cog):
     async def nextgame(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
-        log.info(f"/nextgame: {team_up}")
+        log.info("/nextgame: %s", team_up)
 
         try:
             game: dict = await asyncio.to_thread(fetch_next_game, team_up)

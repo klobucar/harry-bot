@@ -274,7 +274,8 @@ def plot_to_buffer(data: pd.DataFrame, title: str, colorby: str = "pitch_type") 
 
     ax = plotting.plot_strike_zone(data, title=title, colorby=colorby, annotation="")
     fig = ax.get_figure()
-    assert isinstance(fig, Figure)  # narrowed from Figure|SubFigure; plot_strike_zone always returns a Figure
+    if not isinstance(fig, Figure):
+        raise RuntimeError(f"Expected Figure, got {type(fig)}")
     buf = BytesIO()
     try:
         fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
@@ -303,10 +304,15 @@ def fetch_pitcher_zone(player_id: int, year: int, player_name: str) -> BytesIO:
     """
     _init_pybaseball()
     start_dt, end_dt = season_range(year)
-    data: pd.DataFrame = statcast_pitcher(start_dt, end_dt, player_id=player_id)
+    raw: pd.DataFrame = statcast_pitcher(start_dt, end_dt, player_id=player_id)
 
-    if data is None or data.empty:
+    if raw is None or raw.empty:
         raise ValueError(f"No Statcast pitcher data for player_id={player_id} in {year}.")
+
+    # Memory optimization: plot_strike_zone only needs plate_x, plate_z, pitch_type
+    data = raw[["plate_x", "plate_z", "pitch_type"]].copy()
+    del raw
+    gc.collect()
 
     return plot_to_buffer(data, title=f"{player_name} — {year} Strike Zone")
 
@@ -320,10 +326,15 @@ def fetch_batter_zone(player_id: int, year: int, player_name: str) -> BytesIO:
     """
     _init_pybaseball()
     start_dt, end_dt = season_range(year)
-    data: pd.DataFrame = statcast_batter(start_dt, end_dt, player_id)
+    raw: pd.DataFrame = statcast_batter(start_dt, end_dt, player_id)
 
-    if data is None or data.empty:
+    if raw is None or raw.empty:
         raise ValueError(f"No Statcast batter data for player_id={player_id} in {year}.")
+
+    # Memory optimization: plot_strike_zone only needs plate_x, plate_z, pitch_type
+    data = raw[["plate_x", "plate_z", "pitch_type"]].copy()
+    del raw
+    gc.collect()
 
     return plot_to_buffer(data, title=f"{player_name} — {year} Pitches Received")
 
@@ -344,10 +355,16 @@ def fetch_hitter_hotzones(player_id: int, year: int, player_name: str) -> BytesI
     """
     _init_pybaseball()
     start_dt, end_dt = season_range(year)
-    data: pd.DataFrame = statcast_batter(start_dt, end_dt, player_id)
+    raw: pd.DataFrame = statcast_batter(start_dt, end_dt, player_id)
 
-    if data is None or data.empty:
+    if raw is None or raw.empty:
         raise ValueError(f"No Statcast batter data for {player_name} in {year}.")
+
+    # Memory optimization: hotzones only needs zone + events columns.
+    # Drop the other ~90 columns immediately to free ~95% of memory.
+    data = raw[["zone", "events"]].copy()
+    del raw
+    gc.collect()
 
     # 1. Filter to result events (ABs)
     # events: single, double, triple, home_run are hits.
@@ -463,12 +480,18 @@ def fetch_matchup_zone(
     """
     _init_pybaseball()
     start_dt, end_dt = season_range(year)
-    data: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
+    raw: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
 
-    if data is None or data.empty:
+    if raw is None or raw.empty:
         raise ValueError(f"No Statcast data for batter_id={batter_id} in {year}.")
 
+    # Memory optimization: subset to needed columns before filtering
+    data = raw[["pitcher", "plate_x", "plate_z", "pitch_type"]].copy()
+    del raw
+    gc.collect()
+
     matchup: pd.DataFrame = data[data["pitcher"] == pitcher_id].copy()
+    del data
 
     if matchup.empty:
         raise ValueError(
@@ -491,12 +514,18 @@ def compute_matchup_stats(
     """
     _init_pybaseball()
     start_dt, end_dt = season_range(year)
-    data: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
+    raw: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
 
-    if data is None or data.empty:
+    if raw is None or raw.empty:
         raise ValueError(f"No Statcast data for batter_id={batter_id} in {year}.")
 
+    # Memory optimization: only need pitcher + events columns
+    data = raw[["pitcher", "events"]].copy()
+    del raw
+    gc.collect()
+
     matchup: pd.DataFrame = data[data["pitcher"] == pitcher_id]
+    del data
 
     if matchup.empty:
         raise ValueError(
@@ -521,7 +550,6 @@ def compute_matchup_stats(
     }
 
     # Free memory
-    del data
     del matchup
     del atbats
     del hits
@@ -660,13 +688,20 @@ def fetch_spray_chart(
     """
     _init_pybaseball()
     start_dt, end_dt = season_range(year)
-    data: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
+    raw: pd.DataFrame = statcast_batter(start_dt, end_dt, batter_id)
 
-    if data is None or data.empty:
+    if raw is None or raw.empty:
         raise ValueError(f"No Statcast data for batter_id={batter_id} in {year}.")
+
+    # Memory optimization: spraychart only needs a handful of columns
+    keep_cols = ["type", "hc_x", "hc_y", "events", "home_team"]
+    data = raw[[c for c in keep_cols if c in raw.columns]].copy()
+    del raw
+    gc.collect()
 
     # spraychart only makes sense for in-play events with coordinates
     in_play = data[data["type"] == "X"].dropna(subset=["hc_x", "hc_y"])
+    del data
 
     if in_play.empty:
         raise ValueError(f"No batted-ball events with coordinates for {batter_name} in {year}.")
@@ -691,7 +726,8 @@ def fetch_spray_chart(
     )
     ax = plotting.spraychart(in_play, stadium, title=title)
     fig = ax.get_figure()
-    assert isinstance(fig, Figure)  # narrowed from Figure|SubFigure; spraychart always returns a Figure
+    if not isinstance(fig, Figure):
+        raise RuntimeError(f"Expected Figure, got {type(fig)}")
     buf = BytesIO()
     try:
         fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
@@ -702,7 +738,6 @@ def fetch_spray_chart(
         del ax
         del fig
         del in_play
-        del data
         gc.collect()
 
     return buf
@@ -742,13 +777,14 @@ def fetch_stadium_info(team_alias: str) -> dict:
             name = str(row["name"])
             location = str(row["location"])
     except Exception:
-        log.warning(f"Could not load stadium metadata for {stadium_key}")
+        log.warning("Could not load stadium metadata for %s", stadium_key)
 
     # 2. Generate plot
     # pybaseball.plotting.plot_stadium returns an Axes
     ax = plotting.plot_stadium(stadium_key)
     fig = ax.get_figure()
-    assert isinstance(fig, Figure)
+    if not isinstance(fig, Figure):
+        raise RuntimeError(f"Expected Figure, got {type(fig)}")
 
     buf = BytesIO()
     try:
@@ -1045,9 +1081,8 @@ def fetch_schedule(team: str, year: int) -> tuple[str, str]:
             r = str(int(row["R"])) if pd.notna(row.get("R")) else "?"
             ra = str(int(row["RA"])) if pd.notna(row.get("RA")) else "?"
             return f"{date:<7} {ha} {opp:<4}  {wl}  {r}-{ra}"
-        else:
-            time = str(row.get("Time", ""))[:5]
-            return f"{date:<7} {ha} {opp:<4}  {time}"
+        time = str(row.get("Time", ""))[:5]
+        return f"{date:<7} {ha} {opp:<4}  {time}"
 
     past_lines = [_fmt_row(r, True) for _, r in completed.tail(5).iterrows()]
     next_lines = [_fmt_row(r, False) for _, r in scheduled.head(5).iterrows()]
@@ -1085,11 +1120,19 @@ def fetch_hot_cold(
 
     _init_pybaseball()
     if player_type == "pitcher":
-        data: pd.DataFrame = statcast_pitcher(start_str, end_str, player_id=player_id)
+        raw: pd.DataFrame = statcast_pitcher(start_str, end_str, player_id=player_id)
     else:
-        data = statcast_batter(start_str, end_str, player_id)
+        raw = statcast_batter(start_str, end_str, player_id)
 
-    if data is None or data.empty:
+    if raw is None or raw.empty:
+        raise ValueError(f"No Statcast data for {player_name} in the last {days} days.")
+
+    # Memory optimization: only need events column for stat calculations
+    data = raw[["events"]].copy()
+    del raw
+    gc.collect()
+
+    if data.empty:
         raise ValueError(f"No Statcast data for {player_name} in the last {days} days.")
 
     if player_type == "pitcher":
@@ -1110,41 +1153,40 @@ def fetch_hot_cold(
             "HR allowed": hr,
             "PA faced": int(pa),
         }
-    else:
-        ab_df = data[data["events"].isin(AB_EVENTS)]
-        hit_df = ab_df[ab_df["events"].isin(HIT_EVENTS)]
-        ab = len(ab_df)
-        h = len(hit_df)
-        bb = int((data["events"] == "walk").sum())
-        pa = ab + bb
-        avg = h / ab if ab > 0 else 0.0
-        obp = (h + bb) / pa if pa > 0 else 0.0
-        tb = (
-            int((ab_df["events"] == "single").sum())
-            + 2 * int((ab_df["events"] == "double").sum())
-            + 3 * int((ab_df["events"] == "triple").sum())
-            + 4 * int((ab_df["events"] == "home_run").sum())
-        )
-        slg = tb / ab if ab > 0 else 0.0
+    ab_df = data[data["events"].isin(AB_EVENTS)]
+    hit_df = ab_df[ab_df["events"].isin(HIT_EVENTS)]
+    ab = len(ab_df)
+    h = len(hit_df)
+    bb = int((data["events"] == "walk").sum())
+    pa = ab + bb
+    avg = h / ab if ab > 0 else 0.0
+    obp = (h + bb) / pa if pa > 0 else 0.0
+    tb = (
+        int((ab_df["events"] == "single").sum())
+        + 2 * int((ab_df["events"] == "double").sum())
+        + 3 * int((ab_df["events"] == "triple").sum())
+        + 4 * int((ab_df["events"] == "home_run").sum())
+    )
+    slg = tb / ab if ab > 0 else 0.0
 
-        stats = {
-            "period": f"Last {days} days",
-            "PA": pa,
-            "H": h,
-            "AB": ab,
-            "AVG": round(avg, 3),
-            "OBP": round(obp, 3),
-            "SLG": round(slg, 3),
-            "OPS": round(obp + slg, 3),
-        }
+    stats = {
+        "period": f"Last {days} days",
+        "PA": pa,
+        "H": h,
+        "AB": ab,
+        "AVG": round(avg, 3),
+        "OBP": round(obp, 3),
+        "SLG": round(slg, 3),
+        "OPS": round(obp + slg, 3),
+    }
 
-        # Free memory
-        del data
-        del ab_df
-        del hit_df
-        gc.collect()
+    # Free memory
+    del data
+    del ab_df
+    del hit_df
+    gc.collect()
 
-        return stats
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -1268,14 +1310,14 @@ def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd
     try:
         _init_pybaseball()
         fn = fg_pitching_data if player_type == "pitcher" else fg_batting_data
-        log.info(f"FanGraphs: Requesting {player_type} stats for {yr}...")
+        log.info("FanGraphs: Requesting %s stats for %d...", player_type, yr)
 
         try:
             df = fn(yr, yr, qual=1)
         except ValueError as e:
             # FanGraphs returns a malformed 1-column response for future/empty years
             if "columns passed" in str(e):
-                log.info(f"FanGraphs: No valid data for {yr} (likely future/empty season).")
+                log.info("FanGraphs: No valid data for %d (likely future/empty season).", yr)
                 return None
             raise
 
@@ -1287,7 +1329,7 @@ def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd
             gc.collect()
 
             if not res.empty:
-                log.info(f"FanGraphs: Found {first} {last} for {player_type} in {yr}.")
+                log.info("FanGraphs: Found %s %s for %s in %d.", first, last, player_type, yr)
                 res = res.copy()
                 res["_year"] = yr
                 return res
@@ -1296,9 +1338,9 @@ def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd
                 del df
             gc.collect()
 
-        log.warning(f"FanGraphs: Returned empty dataframe for {player_type} in {yr}.")
+        log.warning("FanGraphs: Returned empty dataframe for %s in %d.", player_type, yr)
     except Exception as exc:
-        log.error(f"FanGraphs Error [{player_type} {yr}]: {exc}", exc_info=True)
+        log.exception("FanGraphs Error [%s %d]: %s", player_type, yr, exc)
     return None
 
 

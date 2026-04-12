@@ -96,7 +96,7 @@ class MetaCommands(commands.Cog):
 
     @app_commands.command(name="help", description="List all Harry's commands.")
     async def help(self, interaction: discord.Interaction) -> None:
-        log.info(f"/help called by {interaction.user}")
+        log.info("/help called by %s", interaction.user)
 
         embed = discord.Embed(
             title="📻 Harry Doyle — Command Guide",

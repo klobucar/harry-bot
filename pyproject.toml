@@ -13,6 +13,8 @@ dependencies = [
     "google-genai>=1.67.0",
 ]
 
+
+
 [project.scripts]
 harry = "main:main"
 
@@ -40,20 +42,31 @@ src = [".", "commands", "tests"]
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "N",    # pep8-naming
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "SIM",  # flake8-simplify
-    "TCH",  # flake8-type-checking  (move pure-type imports into TYPE_CHECKING)
-    "PTH",  # flake8-use-pathlib
-    "RUF",  # ruff-specific rules
-    "ERA",  # eradicate (commented-out code)
-    "PL",   # pylint subset (PLR, PLC, PLE)
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+    "TCH",   # flake8-type-checking  (move pure-type imports into TYPE_CHECKING)
+    "PTH",   # flake8-use-pathlib
+    "RUF",   # ruff-specific rules
+    "ERA",   # eradicate (commented-out code)
+    "PL",    # pylint subset (PLR, PLC, PLE)
+    "S",     # bandit (security)
+    "ASYNC", # flake8-async
+    "A",     # flake8-builtins
+    "PT",    # flake8-pytest-style
+    "T20",   # flake8-print
+    "RET",   # flake8-return
+    "PERF",  # perflint
+    "FURB",  # refurb
+    "LOG",   # flake8-logging
+    "G",     # flake8-logging-format
+    "FA",    # flake8-future-annotations
 ]
 ignore = [
     "E501",    # line too long — handled by formatter
@@ -66,6 +79,7 @@ ignore = [
     "E402",    # module-level import — monkeypatching must happen early
     "PLR0912", # too many branches — unavoidable in some setup functions
     "PLR0915", # too many statements — unavoidable in some setup functions
+    "ASYNC109", # async timeout - discord.py has its own timeout handling
 ]
 
 [tool.ruff.lint.isort]
@@ -89,3 +103,4 @@ python-version = "3.14"
 # ── uv ─────────────────────────────────────────────────────────────────────────
 [tool.uv]
 package = false
+exclude-newer = "1 week"

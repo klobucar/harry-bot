@@ -1,0 +1,13 @@
+# .github/CODEOWNERS
+# 
+# This file ensures that sensitive areas of the repository 
+# (like CI/CD workflows and security configurations) 
+# require mandatory review from the owners.
+
+# Default owners for everything
+*       @klobucar
+
+# Specific owners for CI/CD workflows (Supply Chain Security)
+.github/workflows/ @klobucar
+Makefile           @klobucar
+pyproject.toml     @klobucar

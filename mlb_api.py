@@ -113,18 +113,14 @@ def fetch_roster(team: str) -> list[dict]:
     if not roster:
         raise ValueError(f"No active roster data found for {team}.")
 
-    result: list[dict] = []
-    for p in roster:
-        person = p.get("person", {})
-        position = p.get("position", {})
-        result.append(
-            {
-                "name": person.get("fullName", "Unknown"),
-                "pos": position.get("abbreviation", "?"),
-                "status": p.get("status", {}).get("description", "Active"),
-            }
-        )
-    return result
+    return [
+        {
+            "name": p.get("person", {}).get("fullName", "Unknown"),
+            "pos": p.get("position", {}).get("abbreviation", "?"),
+            "status": p.get("status", {}).get("description", "Active"),
+        }
+        for p in roster
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -142,19 +138,14 @@ def fetch_injuries(team: str) -> list[dict]:
     data = _get(f"/teams/{tid}/roster", {"rosterType": "injuries"})
     roster = data.get("roster", [])
 
-    result: list[dict] = []
-    for p in roster:
-        person = p.get("person", {})
-        position = p.get("position", {})
-        note = p.get("note", "")
-        result.append(
-            {
-                "name": person.get("fullName", "Unknown"),
-                "pos": position.get("abbreviation", "?"),
-                "note": note or "—",
-            }
-        )
-    return result
+    return [
+        {
+            "name": p.get("person", {}).get("fullName", "Unknown"),
+            "pos": p.get("position", {}).get("abbreviation", "?"),
+            "note": p.get("note", "") or "—",
+        }
+        for p in roster
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -184,15 +175,13 @@ def fetch_transactions(team: str, days: int = 7) -> list[dict]:
     if not transactions:
         raise ValueError(f"No transactions for {team} in the last {days} days.")
 
-    result: list[dict] = []
-    for t in sorted(transactions, key=lambda x: x.get("date", ""), reverse=True):
-        result.append(
-            {
-                "date": t.get("date", "?")[:10],
-                "desc": t.get("description", "—"),
-            }
-        )
-    return result
+    return [
+        {
+            "date": t.get("date", "?")[:10],
+            "desc": t.get("description", "—"),
+        }
+        for t in sorted(transactions, key=lambda x: x.get("date", ""), reverse=True)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +233,7 @@ def fetch_live_scores(team: str) -> list[dict]:
                 "status": status,
                 "inning": f"{inning_h} {inning}".strip() if inning else status,
                 "outs": outs,
+                "start_time": game.get("gameDate"),
             }
         )
     return games

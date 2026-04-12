@@ -18,18 +18,19 @@ HARRY_ERRORS: list[str] = [
     "Wild thing, I think I love you — but I want to know for sure. And right now I've got nothing.",
     "How can these guys not get excited about baseball? The API sure isn't.",
     "Strike two! ...that was actually ball four, but there's no data either way.",
-    "The Guardians have managed to lose this one before it even started. Empty dataset.",
+    "The Indians have managed to lose this one before it even started. Empty dataset.",
     "He is GONE! ...just like the data you were looking for. Completely gone.",
     "I don't know if that's a good pitch or a bad pitch, because I can't find any pitches at all.",
     "Monty, tell 'em what we've got. Monty: nothing. Right.",
     "Straight from the gut — or whatever it is I've been drinking — that search came up empty.",
     "We're heading into extra innings on this error. My glove's got a better search record than you.",
+    "The signal's fading out here... or maybe the AI just went to the bar. Not responding, pal.",
 ]
 
 
 def harry_error(extra: str = "") -> str:
     """Return a random in-character Harry Doyle error message."""
-    base = random.choice(HARRY_ERRORS)
+    base = random.choice(HARRY_ERRORS)  # noqa: S311
     if extra:
         return f"{base}\n-# *(Technical detail: {extra})*"
     return base

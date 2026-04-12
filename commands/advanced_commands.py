@@ -62,7 +62,7 @@ class AdvancedCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
         days = max(3, min(days, 60))
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
-        log.info(f"/hotcold: {player_name} last {days}d [{player_type}]")
+        log.info("/hotcold: %s last %dd [%s]", player_name, days, player_type)
 
         try:
             player_id: int | None = await asyncio.to_thread(
@@ -118,7 +118,7 @@ class AdvancedCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
-        log.info(f"/exitvelo: {player_name} ({year})")
+        log.info("/exitvelo: %s (%d)", player_name, year)
 
         try:
             player_id: int | None = await asyncio.to_thread(
@@ -173,7 +173,7 @@ class AdvancedCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
-        log.info(f"/percentile: {player_name} ({year}) [{player_type}]")
+        log.info("/percentile: %s (%d) [%s]", player_name, year, player_type)
 
         try:
             player_id: int | None = await asyncio.to_thread(
@@ -225,7 +225,7 @@ class AdvancedCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
         cy = current_year()
-        log.info(f"/career: {player_name}")
+        log.info("/career: %s", player_name)
 
         # Lookup debut + last active year — runs in a thread so it doesn't block
         debut, _ = await asyncio.to_thread(
@@ -239,7 +239,7 @@ class AdvancedCommands(commands.Cog):
             last_n_years = max(1, last_n_years)
             years = years[-last_n_years:]
 
-        log.info(f"/career: {player_name} years {years[0]}-{years[-1]}")
+        log.info("/career: %s years %d-%d", player_name, years[0], years[-1])
 
         sem = asyncio.Semaphore(1)
 
@@ -311,7 +311,7 @@ class AdvancedCommands(commands.Cog):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
         await interaction.response.defer(thinking=True)
-        log.info(f"/leaderboard: {stat} {year} [{player_type}]")
+        log.info("/leaderboard: %s %d [%s]", stat, year, player_type)
 
         try:
             leaders: list[dict] = await asyncio.to_thread(

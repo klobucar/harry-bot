@@ -87,7 +87,7 @@ class StatsCommands(commands.Cog):
         embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
 
         await interaction.followup.send(embed=embed)
-        log.info(f"/arsenal completed: {player_name} ({year})")
+        log.info("/arsenal completed: %s (%d)", player_name, year)
 
     # -----------------------------------------------------------------------
     # /stats
@@ -139,7 +139,7 @@ class StatsCommands(commands.Cog):
         embed.set_footer(text="Data: FanGraphs via pybaseball")
 
         await interaction.followup.send(embed=embed)
-        log.info(f"/stats completed: {player_name} ({year}) [{player_type}]")
+        log.info("/stats completed: %s (%d) [%s]", player_name, year, player_type)
 
     # -----------------------------------------------------------------------
     # /compare
@@ -170,7 +170,7 @@ class StatsCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
         p1_name = f"{p1_first.strip().title()} {p1_last.strip().title()}"
         p2_name = f"{p2_first.strip().title()} {p2_last.strip().title()}"
-        log.info(f"/compare called: {p1_name} vs {p2_name} ({year})")
+        log.info("/compare called: %s vs %s (%d)", p1_name, p2_name, year)
 
         try:
             p1_task = asyncio.to_thread(fetch_player_stats, p1_first.strip(), p1_last.strip(), year)
@@ -209,4 +209,4 @@ class StatsCommands(commands.Cog):
         embed.set_footer(text="Data: FanGraphs via pybaseball")
 
         await interaction.followup.send(embed=embed)
-        log.info(f"/compare completed: {p1_name} vs {p2_name} ({year})")
+        log.info("/compare completed: %s vs %s (%d)", p1_name, p2_name, year)

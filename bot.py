@@ -73,7 +73,7 @@ class HarryBot(commands.Bot):
             guild = discord.Object(id=int(dev_guild_id))
             self.tree.copy_global_to(guild=guild)
             await self.tree.sync(guild=guild)
-            log.info(f"Slash commands synced to dev guild {dev_guild_id} (instant).")
+            log.info("Slash commands synced to dev guild %s (instant).", dev_guild_id)
         else:
             # Global sync — takes up to 1 hour to propagate
             await self.tree.sync()
@@ -90,8 +90,12 @@ class HarryBot(commands.Bot):
         await super().on_message(message)
 
     async def on_ready(self) -> None:
-        assert self.user is not None  # guaranteed once on_ready fires
-        log.info(f"Harry's in the booth. Logged in as {self.user} (id={self.user.id})")
+        if self.user is None:
+            raise RuntimeError("Bot.user is None on_ready")
+        log.info("Harry's in the booth. Logged in as %s (id=%s)", self.user, self.user.id)
         await self.change_presence(
-            activity=discord.Game(name="/strikezone | /matchup — Juuust a bit outside.")
+            activity=discord.Activity(
+                type=discord.ActivityType.listening,
+                name="Calling the game. Juuust a bit outside."
+            )
         )

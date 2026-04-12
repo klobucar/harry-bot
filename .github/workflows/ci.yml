@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout codebase
+        uses: actions/checkout@44c2b7a8a4ea6028510634977457788478d1033e # v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@e97a379051060938f375f0a2e557b98d2495af44 # v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@0a5c6159265f2420556f8f7808269d08e5619379 # v5
+        with:
+          python-version: "3.14-dev"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint (Ruff)
+        run: uv run ruff check .
+
+      - name: Format Check (Ruff)
+        run: uv run ruff format --check .
+
+      - name: Type Check (Ty)
+        run: uv run ty check
+
+      - name: Run Tests
+        run: uv run pytest

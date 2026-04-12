@@ -90,7 +90,7 @@ class MatchupCommands(commands.Cog):
 
         pitcher_name = f"{pitcher_first.strip().title()} {pitcher_last.strip().title()}"
         batter_name = f"{batter_first.strip().title()} {batter_last.strip().title()}"
-        log.info(f"/matchup: {pitcher_name} vs {batter_name} ({year})")
+        log.info("/matchup: %s vs %s (%d)", pitcher_name, batter_name, year)
 
         try:
             ids = await self._resolve_both(
@@ -136,7 +136,7 @@ class MatchupCommands(commands.Cog):
         )
 
         await interaction.followup.send(embed=embed)
-        log.info(f"/matchup completed: {pitcher_name} vs {batter_name} ({year})")
+        log.info("/matchup completed: %s vs %s (%d)", pitcher_name, batter_name, year)
 
     # -----------------------------------------------------------------------
     # /matchupzone
@@ -168,7 +168,7 @@ class MatchupCommands(commands.Cog):
 
         pitcher_name = f"{pitcher_first.strip().title()} {pitcher_last.strip().title()}"
         batter_name = f"{batter_first.strip().title()} {batter_last.strip().title()}"
-        log.info(f"/matchupzone: {pitcher_name} vs {batter_name} ({year})")
+        log.info("/matchupzone: %s vs %s (%d)", pitcher_name, batter_name, year)
 
         try:
             ids = await self._resolve_both(
@@ -211,4 +211,4 @@ class MatchupCommands(commands.Cog):
         )
 
         await interaction.followup.send(embed=embed, file=file)
-        log.info(f"/matchupzone completed: {pitcher_name} vs {batter_name} ({year})")
+        log.info("/matchupzone completed: %s vs %s (%d)", pitcher_name, batter_name, year)

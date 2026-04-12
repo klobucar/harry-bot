@@ -58,7 +58,7 @@ class VisualCommands(commands.Cog):
 
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
         stadium = team_stadium.strip().lower()
-        log.info(f"/spraychart called: {player_name} ({year}) @ {stadium}")
+        log.info("/spraychart called: %s (%d) @ %s", player_name, year, stadium)
 
         try:
             player_id: int | None = await asyncio.to_thread(
@@ -93,7 +93,7 @@ class VisualCommands(commands.Cog):
         embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
 
         await interaction.followup.send(embed=embed, file=file)
-        log.info(f"/spraychart completed for {player_name} ({year})")
+        log.info("/spraychart completed for %s (%d)", player_name, year)
 
     @app_commands.command(
         name="hotzones",
@@ -117,7 +117,7 @@ class VisualCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
-        log.info(f"/hotzones called: {player_name} ({year})")
+        log.info("/hotzones called: %s (%d)", player_name, year)
 
         try:
             player_id: int | None = await asyncio.to_thread(
@@ -152,7 +152,7 @@ class VisualCommands(commands.Cog):
         embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
 
         await interaction.followup.send(embed=embed, file=file)
-        log.info(f"/hotzones completed for {player_name} ({year})")
+        log.info("/hotzones completed for %s (%d)", player_name, year)
 
     @app_commands.command(
         name="stadium",
@@ -165,7 +165,7 @@ class VisualCommands(commands.Cog):
         team: str,
     ) -> None:
         await interaction.response.defer(thinking=True)
-        log.info(f"/stadium called: {team}")
+        log.info("/stadium called: %s", team)
 
         try:
             info = await asyncio.to_thread(fetch_stadium_info, team)

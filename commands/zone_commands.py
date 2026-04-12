@@ -53,7 +53,7 @@ class ZoneCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
-        log.info(f"/strikezone called: {player_name} ({year})")
+        log.info("/strikezone called: %s (%d)", player_name, year)
 
         try:
             player_id: int | None = await asyncio.to_thread(
@@ -83,7 +83,7 @@ class ZoneCommands(commands.Cog):
         embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
 
         await interaction.followup.send(embed=embed, file=file)
-        log.info(f"/strikezone completed for {player_name} ({year})")
+        log.info("/strikezone completed for %s (%d)", player_name, year)
 
     # -----------------------------------------------------------------------
     # /battedzone
@@ -110,7 +110,7 @@ class ZoneCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         player_name = f"{first_name.strip().title()} {last_name.strip().title()}"
-        log.info(f"/battedzone called: {player_name} ({year})")
+        log.info("/battedzone called: %s (%d)", player_name, year)
 
         try:
             player_id: int | None = await asyncio.to_thread(
@@ -143,4 +143,4 @@ class ZoneCommands(commands.Cog):
         embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
 
         await interaction.followup.send(embed=embed, file=file)
-        log.info(f"/battedzone completed for {player_name} ({year})")
+        log.info("/battedzone completed for %s (%d)", player_name, year)
