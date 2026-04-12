@@ -14,16 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout codebase
-        uses: actions/checkout@44c2b7a8a4ea6028510634977457788478d1033e # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@e97a379051060938f375f0a2e557b98d2495af44 # v5
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8
         with:
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@0a5c6159265f2420556f8f7808269d08e5619379 # v5
-        with:
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
           python-version: "3.14-dev"
 
       - name: Install dependencies
