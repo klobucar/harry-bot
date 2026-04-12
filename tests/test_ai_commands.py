@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Any, cast
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
@@ -21,7 +21,7 @@ def interaction() -> discord.Interaction:
     mock_interaction.response.send_message = AsyncMock()
     mock_interaction.followup = MagicMock()
     mock_interaction.followup.send = AsyncMock()
-    return cast(discord.Interaction, mock_interaction)
+    return cast("discord.Interaction", mock_interaction)
 
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
@@ -94,7 +94,6 @@ async def test_junkstats_client_error_swallowed(mock_client_class, bot, interact
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
 @patch("commands.ai_commands.genai.Client")
 async def test_junkstats_timeout(mock_client_class, bot, interaction):
-    import asyncio
     # Setup mock client to raise TimeoutError
     mock_client = mock_client_class.return_value
     mock_client.aio.models.generate_content = AsyncMock(side_effect=asyncio.TimeoutError)
