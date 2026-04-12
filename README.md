@@ -76,7 +76,7 @@ uv run pytest
 - **`asyncio.to_thread()`** — all blocking pybaseball/matplotlib calls run in a thread pool so the event loop stays responsive
 - **`interaction.response.defer(thinking=True)`** — prevents Discord's 3-second interaction timeout
 - **`plt.close(fig)`** — called after every plot save to prevent matplotlib memory leaks
-- **[Gemini 2.5 Flash Lite](https://ai.google.dev/)** — powers `/junkstats` via the `google-genai` SDK for absurdly specific baseball facts
+- **[Gemini 3.1 Flash Preview](https://ai.google.dev/)** — powers `/junkstats` via the `google-genai` SDK for absurdly specific baseball facts
 
 ## Memory Optimization
 
@@ -116,3 +116,7 @@ Harry is configured to deploy as a background worker on Fly.io using the include
    ```bash
    fly deploy
    ```
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
