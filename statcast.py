@@ -30,23 +30,31 @@ import pandas as pd
 # This prevents Pybaseball from crashing the Fly.io 512MB RAM ceiling by
 # dropping dataframe read memory spikes from 250MB down to <5MB.
 _original_read_csv = pd.read_csv
+
+
 def fast_read_csv(*args, **kwargs):
-    kwargs['engine'] = 'pyarrow'
+    kwargs["engine"] = "pyarrow"
     try:
         return _original_read_csv(*args, **kwargs)
     except Exception:
-        kwargs.pop('engine', None)
+        kwargs.pop("engine", None)
         return _original_read_csv(*args, **kwargs)
+
+
 pd.read_csv = cast("Any", fast_read_csv)
 
 _original_read_json = pd.read_json
+
+
 def fast_read_json(*args, **kwargs):
-    kwargs['engine'] = 'pyarrow'
+    kwargs["engine"] = "pyarrow"
     try:
         return _original_read_json(*args, **kwargs)
     except Exception:
-        kwargs.pop('engine', None)
+        kwargs.pop("engine", None)
         return _original_read_json(*args, **kwargs)
+
+
 pd.read_json = cast("Any", fast_read_json)
 # --------------------------------------
 
@@ -74,6 +82,7 @@ _pybaseball_initialized = False
 # Matplotlib sentinels
 plt: Any = None
 Figure: Any = None
+
 
 def _init_pybaseball():
     """Lazy initialization of pybaseball to save startup memory."""
@@ -105,12 +114,15 @@ def _init_pybaseball():
     # FanGraphs actively blocks default Python/Requests User-Agents with a 403 Forbidden.
     # We monkeypatch the requests.Session to always send a real browser User-Agent globally.
     import requests
+
     _orig_request = requests.Session.request
 
     @wraps(_orig_request)
     def _mock_request(self, method, url, **kwargs):
         kwargs.setdefault("headers", {})
-        kwargs["headers"]["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        kwargs["headers"]["User-Agent"] = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
         return _orig_request(self, method, url, **kwargs)
 
     requests.Session.request = cast("Any", _mock_request)
@@ -144,6 +156,7 @@ def _init_pybaseball():
     # Initialize Matplotlib
     import matplotlib.pyplot as plt_mod
     from matplotlib.figure import Figure as Figure_cls
+
     if plt is None:
         plt = plt_mod
     if Figure is None:
@@ -375,15 +388,26 @@ def fetch_hitter_hotzones(player_id: int, year: int, player_name: str) -> BytesI
     data = data[data["zone"].between(1, 9)]
 
     if data.empty:
-        raise ValueError(f"No pitches recorded in the strike zone (1-9) for {player_name} in {year}.")
+        raise ValueError(
+            f"No pitches recorded in the strike zone (1-9) for {player_name} in {year}."
+        )
 
     # Calculate BA per zone
     hits = {"single", "double", "triple", "home_run"}
     # ABs are events that aren't walks/hbp/sac/etc.
     ab_events = {
-        "single", "double", "triple", "home_run", "field_out", "strikeout",
-        "force_out", "grounded_into_double_play", "fielders_choice",
-        "fielders_choice_out", "double_play", "triple_play"
+        "single",
+        "double",
+        "triple",
+        "home_run",
+        "field_out",
+        "strikeout",
+        "force_out",
+        "grounded_into_double_play",
+        "fielders_choice",
+        "fielders_choice_out",
+        "double_play",
+        "triple_play",
     }
 
     def _get_ba(df):
@@ -406,11 +430,14 @@ def fetch_hitter_hotzones(player_id: int, year: int, player_name: str) -> BytesI
     # 7 8 9
     # This maps perfectly to a 3x3 numpy array
     import numpy as np
-    grid = np.array([
-        [zone_ba[1], zone_ba[2], zone_ba[3]],
-        [zone_ba[4], zone_ba[5], zone_ba[6]],
-        [zone_ba[7], zone_ba[8], zone_ba[9]]
-    ])
+
+    grid = np.array(
+        [
+            [zone_ba[1], zone_ba[2], zone_ba[3]],
+            [zone_ba[4], zone_ba[5], zone_ba[6]],
+            [zone_ba[7], zone_ba[8], zone_ba[9]],
+        ]
+    )
 
     # 3. Plot
     import matplotlib.colors as mcolors
@@ -429,12 +456,23 @@ def fetch_hitter_hotzones(player_id: int, year: int, player_name: str) -> BytesI
         for j in range(3):
             val = grid[i, j]
             color = "white" if val > 0.35 or val < 0.15 else "black"
-            ax.text(j, i, f"{val:.3f}".replace("0.", "."),
-                    ha="center", va="center", color=color,
-                    fontsize=14, fontweight="bold")
+            ax.text(
+                j,
+                i,
+                f"{val:.3f}".replace("0.", "."),
+                ha="center",
+                va="center",
+                color=color,
+                fontsize=14,
+                fontweight="bold",
+            )
 
-    ax.set_title(f"Hitter Hot Zones: {player_name} ({year})\n(Batting Average by Zone)",
-                 pad=20, fontsize=12, fontweight="bold")
+    ax.set_title(
+        f"Hitter Hot Zones: {player_name} ({year})\n(Batting Average by Zone)",
+        pad=20,
+        fontsize=12,
+        fontweight="bold",
+    )
 
     # Hide ticks
     ax.set_xticks([])
@@ -817,12 +855,8 @@ def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
     """
     _init_pybaseball()
     # Fetch all pitchers with low minP so fringe guys aren't excluded
-    speed_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(
-        year, minP=10, arsenal_type="avg_speed"
-    )
-    spin_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(
-        year, minP=10, arsenal_type="avg_spin"
-    )
+    speed_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(year, minP=10, arsenal_type="avg_speed")
+    spin_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(year, minP=10, arsenal_type="avg_spin")
     usage_df: pd.DataFrame = statcast_pitcher_pitch_arsenal(year, minP=10, arsenal_type="n_")
 
     def _filter(df: pd.DataFrame) -> pd.DataFrame:

@@ -20,10 +20,7 @@ log.setLevel(logging.INFO)
 discord_logger = logging.getLogger("discord")
 discord_logger.setLevel(logging.WARNING)
 
-_OWNER_ONLY_DM_MSG = (
-    "Juuust a bit outside my jurisdiction, pal. "
-    "I only take calls from the owner."
-)
+_OWNER_ONLY_DM_MSG = "Juuust a bit outside my jurisdiction, pal. I only take calls from the owner."
 
 
 class HarryBot(commands.Bot):
@@ -37,7 +34,7 @@ class HarryBot(commands.Bot):
             intents=intents,
             max_messages=None,
             chunk_guilds_at_startup=False,
-            member_cache_flags=discord.MemberCacheFlags.none()
+            member_cache_flags=discord.MemberCacheFlags.none(),
         )
 
         raw = os.environ.get("OWNER_ID", "")
@@ -56,9 +53,7 @@ class HarryBot(commands.Bot):
                 and isinstance(interaction.channel, discord.DMChannel)
                 and interaction.user.id != self._owner_id
             ):
-                await interaction.response.send_message(
-                    _OWNER_ONLY_DM_MSG, ephemeral=True
-                )
+                await interaction.response.send_message(_OWNER_ONLY_DM_MSG, ephemeral=True)
                 return False
             return True
 
@@ -95,7 +90,6 @@ class HarryBot(commands.Bot):
         log.info("Harry's in the booth. Logged in as %s (id=%s)", self.user, self.user.id)
         await self.change_presence(
             activity=discord.Activity(
-                type=discord.ActivityType.listening,
-                name="Calling the game. Juuust a bit outside."
+                type=discord.ActivityType.listening, name="Calling the game. Juuust a bit outside."
             )
         )

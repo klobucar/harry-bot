@@ -143,8 +143,7 @@ class VisualCommands(commands.Cog):
         embed = discord.Embed(
             title=f"🔥 Hitter Hot Zones: {player_name}",
             description=(
-                f"**Season:** {year}\n"
-                "Strike zone (1-9) colored by Batting Average (Hits/AB)."
+                f"**Season:** {year}\nStrike zone (1-9) colored by Batting Average (Hits/AB)."
             ),
             color=discord.Color.from_rgb(220, 20, 60),  # crimson
         )

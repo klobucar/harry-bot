@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Any, cast
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
@@ -13,6 +13,7 @@ from commands.ai_commands import AICommands
 def bot() -> MagicMock:
     return MagicMock()
 
+
 @pytest.fixture
 def interaction() -> discord.Interaction:
     mock_interaction = MagicMock(spec=discord.Interaction)
@@ -21,7 +22,8 @@ def interaction() -> discord.Interaction:
     mock_interaction.response.send_message = AsyncMock()
     mock_interaction.followup = MagicMock()
     mock_interaction.followup.send = AsyncMock()
-    return cast(discord.Interaction, mock_interaction)
+    return cast("discord.Interaction", mock_interaction)
+
 
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
@@ -42,6 +44,7 @@ async def test_junkstats_success(mock_client_class, bot, interaction):
     args, _ = interaction.followup.send.call_args
     assert "Prince Fielder" in args[0]
 
+
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": ""})
 async def test_junkstats_no_api_key(bot, interaction):
@@ -52,6 +55,7 @@ async def test_junkstats_no_api_key(bot, interaction):
     args, kwargs = interaction.response.send_message.call_args
     assert "Gemini API key is missing" in args[0]
     assert kwargs["ephemeral"] is True
+
 
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
@@ -69,15 +73,19 @@ async def test_junkstats_api_error(mock_client_class, bot, interaction):
     # Generic exceptions should still show technical details
     assert "General Error" in args[0]
 
+
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
 @patch("commands.ai_commands.genai.Client")
 async def test_junkstats_client_error_swallowed(mock_client_class, bot, interaction):
     from google.genai.errors import ClientError
+
     # Setup mock client to raise a Gemini ClientError
     mock_client = mock_client_class.return_value
     # ClientError requires code (int) and response_json arguments
-    mock_client.aio.models.generate_content = AsyncMock(side_effect=ClientError(429, response_json={}))
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=ClientError(429, response_json={})
+    )
 
     cog = AICommands(bot)
     await cog.junkstats.callback(cog, interaction)  # type: ignore
@@ -88,13 +96,14 @@ async def test_junkstats_client_error_swallowed(mock_client_class, bot, interact
     assert "Quota Exceeded" not in args[0]
     # It should still be a Harry quote (from persona.py)
     from persona import HARRY_ERRORS
+
     assert any(q in args[0] for q in HARRY_ERRORS)
+
 
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
 @patch("commands.ai_commands.genai.Client")
 async def test_junkstats_timeout(mock_client_class, bot, interaction):
-    import asyncio
     # Setup mock client to raise TimeoutError
     mock_client = mock_client_class.return_value
     mock_client.aio.models.generate_content = AsyncMock(side_effect=asyncio.TimeoutError)
