@@ -11,6 +11,7 @@ log = logging.getLogger("harry")
 
 DEFAULT_ACTIVITY = discord.Game(name="Juuust a bit outside.")
 
+
 class PresenceTask(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -69,11 +70,12 @@ class PresenceTask(commands.Cog):
                 away = game["away_team"].replace("Detroit Tigers", "Tigers")
                 home = game["home_team"].replace("Detroit Tigers", "Tigers")
 
-                msg = f"{away} {game['away_score']} @ {home} {game['home_score']} ({game['inning']})"
-                await self.bot.change_presence(activity=discord.Activity(
-                    type=discord.ActivityType.watching,
-                    name=msg
-                ))
+                msg = (
+                    f"{away} {game['away_score']} @ {home} {game['home_score']} ({game['inning']})"
+                )
+                await self.bot.change_presence(
+                    activity=discord.Activity(type=discord.ActivityType.watching, name=msg)
+                )
             else:
                 # Preview / Scheduled
                 start_str = game.get("start_time")
@@ -81,7 +83,7 @@ class PresenceTask(commands.Cog):
                     # e.g. "2024-03-28T20:10:00Z"
                     dt = datetime.fromisoformat(start_str)
                     t_str = dt.strftime("%-I:%M %p").lower()
-                    msg = f"Tigers @ {t_str} ET" # Typical baseball shorthand
+                    msg = f"Tigers @ {t_str} ET"  # Typical baseball shorthand
                 else:
                     msg = f"Upcoming: {game['away_team']} @ {game['home_team']}"
 
@@ -94,6 +96,7 @@ class PresenceTask(commands.Cog):
             await self.bot.change_presence(activity=DEFAULT_ACTIVITY)
         except Exception:
             log.exception("Error in update_presence task")
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(PresenceTask(bot))
