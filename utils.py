@@ -19,6 +19,27 @@ def current_year() -> int:
     return datetime.datetime.now().year
 
 
+def current_season(today: datetime.date | None = None) -> int:
+    """
+    Return the MLB season year that users most likely want as a default.
+
+    Before April 1 the current calendar year's Opening Day either hasn't
+    happened yet or is only a game or two old, and FanGraphs / Statcast
+    leaderboards are effectively empty — so we default to last year. On
+    April 1 and after, we switch to the current calendar year.
+
+    Opening Day floats between the last week of March (sometimes a
+    Tokyo-series game in mid-March); April 1 is the cleanest rule that
+    avoids per-year calibration against MLB's schedule endpoint.
+
+    `today` is injectable for deterministic tests.
+    """
+    d = today if today is not None else datetime.date.today()
+    if d.month < 4:
+        return d.year - 1
+    return d.year
+
+
 def validate_statcast_year(year: int) -> str | None:
     """
     Validate a year for Statcast commands (/strikezone, /battedzone, /spraychart,

@@ -4,9 +4,15 @@ tests/test_utils.py — Tests for utils.py year validators.
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import patch
 
-from utils import validate_fangraphs_year, validate_statcast_year, validate_year_range
+from utils import (
+    current_season,
+    validate_fangraphs_year,
+    validate_statcast_year,
+    validate_year_range,
+)
 
 
 class TestValidateStatcastYear:
@@ -55,6 +61,40 @@ class TestValidateFangraphsYear:
     def test_statcast_year_valid_for_fangraphs(self) -> None:
         # 2015 is valid for Statcast — also valid for FanGraphs
         assert validate_fangraphs_year(2015) is None
+
+
+class TestCurrentSeason:
+    def test_january_returns_previous_year(self) -> None:
+        """Opening Day hasn't happened yet — default to last season."""
+        assert current_season(datetime.date(2026, 1, 15)) == 2025
+
+    def test_february_returns_previous_year(self) -> None:
+        assert current_season(datetime.date(2026, 2, 28)) == 2025
+
+    def test_march_returns_previous_year(self) -> None:
+        """Even late March — Opening Day floats, April 1 is the clean cutoff."""
+        assert current_season(datetime.date(2026, 3, 31)) == 2025
+
+    def test_april_first_returns_current_year(self) -> None:
+        """April 1 is the bright-line switch — every team has played by now."""
+        assert current_season(datetime.date(2026, 4, 1)) == 2026
+
+    def test_midseason_returns_current_year(self) -> None:
+        assert current_season(datetime.date(2026, 7, 15)) == 2026
+
+    def test_october_returns_current_year(self) -> None:
+        """Postseason still counts as the current year's data."""
+        assert current_season(datetime.date(2026, 10, 30)) == 2026
+
+    def test_december_returns_current_year(self) -> None:
+        """Off-season December — still last year's season data is current."""
+        assert current_season(datetime.date(2026, 12, 31)) == 2026
+
+    def test_no_argument_uses_today(self) -> None:
+        """Default-argument version uses date.today() — smoke test only."""
+        result = current_season()
+        expected_year = datetime.date.today().year
+        assert result in (expected_year, expected_year - 1)
 
 
 class TestValidateYearRange:
