@@ -11,6 +11,12 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from commands.autocomplete import (
+    first_name_autocomplete,
+    last_name_autocomplete,
+    make_first_name_autocomplete,
+    make_last_name_autocomplete,
+)
 from persona import harry_error
 from statcast import (
     fetch_pitch_arsenal,
@@ -39,6 +45,10 @@ class StatsCommands(commands.Cog):
         first_name="Pitcher's first name",
         last_name="Pitcher's last name",
         year="Season year (e.g. 2024)",
+    )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
     )
     async def arsenal(
         self,
@@ -101,6 +111,10 @@ class StatsCommands(commands.Cog):
         last_name="Player's last name",
         year="Season year (e.g. 2024)",
     )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
+    )
     async def stats(
         self,
         interaction: discord.Interaction,
@@ -154,6 +168,12 @@ class StatsCommands(commands.Cog):
         p2_first="Second player's first name",
         p2_last="Second player's last name",
         year="Season year (e.g. 2024)",
+    )
+    @app_commands.autocomplete(
+        p1_first=make_first_name_autocomplete("p1_last"),
+        p1_last=make_last_name_autocomplete("p1_first"),
+        p2_first=make_first_name_autocomplete("p2_last"),
+        p2_last=make_last_name_autocomplete("p2_first"),
     )
     async def compare(
         self,
