@@ -19,23 +19,37 @@ def current_year() -> int:
     return datetime.datetime.now().year
 
 
+def _last_thursday_of_march(year: int) -> datetime.date:
+    """Return the date of the last Thursday in March for `year`.
+
+    MLB's Opening Day in the modern era (2018+) has been the last Thursday
+    in March — 2024-03-28, 2023-03-30, 2025-03-27, etc. Walk back from
+    March 31 to the nearest Thursday.
+    """
+    march_31 = datetime.date(year, 3, 31)
+    # weekday(): Mon=0, Thu=3 → distance back to the most recent Thursday.
+    days_back = (march_31.weekday() - 3) % 7
+    return march_31 - datetime.timedelta(days=days_back)
+
+
 def current_season(today: datetime.date | None = None) -> int:
     """
     Return the MLB season year that users most likely want as a default.
 
-    Before April 1 the current calendar year's Opening Day either hasn't
-    happened yet or is only a game or two old, and FanGraphs / Statcast
-    leaderboards are effectively empty — so we default to last year. On
-    April 1 and after, we switch to the current calendar year.
+    Before Opening Day the current calendar year's leaderboards are empty,
+    so default to last season. On or after Opening Day (the last Thursday
+    in March in the modern era), switch to the current calendar year.
 
-    Opening Day floats between the last week of March (sometimes a
-    Tokyo-series game in mid-March); April 1 is the cleanest rule that
-    avoids per-year calibration against MLB's schedule endpoint.
+    This misses unusual years — the 2020 pandemic start, the 2022 lockout
+    delay, a mid-March Tokyo series — by a week or two. For those we'd
+    need to hit MLB's schedule endpoint at startup; the last-Thursday rule
+    is the deterministic fallback that's right for every normal season.
 
     `today` is injectable for deterministic tests.
     """
     d = today if today is not None else datetime.date.today()
-    if d.month < 4:
+    opening_day = _last_thursday_of_march(d.year)
+    if d < opening_day:
         return d.year - 1
     return d.year
 
