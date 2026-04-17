@@ -15,6 +15,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
 from persona import harry_error
 from statcast import fetch_hitter_hotzones, fetch_spray_chart, fetch_stadium_info, resolve_player_id
 from utils import validate_statcast_year
@@ -42,6 +43,10 @@ class VisualCommands(commands.Cog):
         last_name="Batter's last name",
         year="Season year (e.g. 2023)",
         team_stadium="Stadium to use, e.g. 'tigers', 'yankees', 'generic'",
+    )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
     )
     async def spraychart(
         self,
@@ -103,6 +108,10 @@ class VisualCommands(commands.Cog):
         first_name="Batter's first name",
         last_name="Batter's last name",
         year="Season year (e.g. 2024)",
+    )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
     )
     async def hotzones(
         self,

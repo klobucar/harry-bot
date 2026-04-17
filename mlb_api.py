@@ -286,3 +286,66 @@ def fetch_next_game(team: str) -> dict:
                 }
 
     raise ValueError(f"No upcoming games found for {team} in the next 14 days.")
+
+
+# ---------------------------------------------------------------------------
+# Player roster (for autocomplete)
+# ---------------------------------------------------------------------------
+
+# Reverse lookup: MLB team ID -> abbreviation used everywhere else in the bot.
+# Built from TEAM_IDS, preferring the canonical 3-letter form when multiple
+# aliases exist (e.g. both "SDP" and "SD" map to 135 — use "SD" because it's
+# what baseball-reference and Statcast use).
+_CANONICAL_ABBRS: frozenset[str] = frozenset(
+    {"ARI", "ATL", "BAL", "BOS", "CHC", "CWS", "CIN", "CLE", "COL", "DET",
+     "HOU", "KC", "LAA", "LAD", "MIA", "MIL", "MIN", "NYM", "NYY", "OAK",
+     "PHI", "PIT", "SD", "SF", "SEA", "STL", "TB", "TEX", "TOR", "WSN"}
+)  # fmt: skip
+_TEAM_ID_TO_ABBR: dict[int, str] = {
+    tid: abbr for abbr, tid in TEAM_IDS.items() if abbr in _CANONICAL_ABBRS
+}
+
+
+def fetch_players(season: int) -> list[dict]:
+    """
+    Fetch the full MLB player roster for a given season.
+
+    Returns a list of compact dicts: {id, first, last, team, position}.
+    team is the 3-letter abbreviation (e.g. "NYY") or "" if the player's
+    currentTeam isn't in the 30 MLB clubs (minor league, free agent, etc.).
+    """
+    data = _get("/sports/1/players", {"season": season})
+    out: list[dict] = []
+    for p in data.get("people", []):
+        team_id = (p.get("currentTeam") or {}).get("id")
+        team_abbr = _TEAM_ID_TO_ABBR.get(team_id, "") if team_id else ""
+        out.append(
+            {
+                "id": p.get("id"),
+                "first": (p.get("firstName") or p.get("useName") or "").strip(),
+                "last": (p.get("lastName") or "").strip(),
+                "team": team_abbr,
+                "position": (p.get("primaryPosition") or {}).get("abbreviation", ""),
+            }
+        )
+    return out
+
+
+def fetch_recent_players(seasons: list[int]) -> list[dict]:
+    """
+    Fetch rosters for multiple seasons. Callers deduplicate downstream.
+
+    Network calls happen serially; the caller should thread-wrap this for
+    asyncio. Failures for individual seasons are logged but don't abort
+    the batch — partial data is better than none for autocomplete.
+    """
+    combined: list[dict] = []
+    for season in seasons:
+        try:
+            combined.extend(fetch_players(season))
+        except Exception as exc:
+            # Keep going; a single bad season shouldn't kill the whole refresh
+            import logging
+
+            logging.getLogger("harry").warning("fetch_players(%d) failed: %s", season, exc)
+    return combined

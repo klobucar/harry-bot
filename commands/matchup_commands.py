@@ -15,9 +15,18 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from commands.autocomplete import (
+    make_first_name_autocomplete,
+    make_last_name_autocomplete,
+)
 from persona import harry_error
 from statcast import compute_matchup_stats, fetch_matchup_zone, resolve_player_id
 from utils import validate_statcast_year
+
+_pitcher_first_ac = make_first_name_autocomplete("pitcher_last")
+_pitcher_last_ac = make_last_name_autocomplete("pitcher_first")
+_batter_first_ac = make_first_name_autocomplete("batter_last")
+_batter_last_ac = make_last_name_autocomplete("batter_first")
 
 log = logging.getLogger("harry")
 
@@ -73,6 +82,12 @@ class MatchupCommands(commands.Cog):
         batter_first="Batter's first name",
         batter_last="Batter's last name",
         year="Season year (e.g. 2023)",
+    )
+    @app_commands.autocomplete(
+        pitcher_first=_pitcher_first_ac,
+        pitcher_last=_pitcher_last_ac,
+        batter_first=_batter_first_ac,
+        batter_last=_batter_last_ac,
     )
     async def matchup(
         self,
@@ -151,6 +166,12 @@ class MatchupCommands(commands.Cog):
         batter_first="Batter's first name",
         batter_last="Batter's last name",
         year="Season year (e.g. 2023)",
+    )
+    @app_commands.autocomplete(
+        pitcher_first=_pitcher_first_ac,
+        pitcher_last=_pitcher_last_ac,
+        batter_first=_batter_first_ac,
+        batter_last=_batter_last_ac,
     )
     async def matchupzone(
         self,
