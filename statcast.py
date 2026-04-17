@@ -13,6 +13,7 @@ import gc
 import importlib.resources
 import logging
 import os
+import re
 from datetime import date, timedelta
 from functools import wraps
 from io import BytesIO
@@ -64,8 +65,6 @@ from utils import current_year
 # --- Lazy Loading Sentinels ---
 # These are populated by _init_pybaseball() on first use.
 # Using None allows them to be mock.patch-ed by tests to skip real imports.
-fg_batting_data: Any = None
-fg_pitching_data: Any = None
 playerid_lookup: Any = None
 plotting: Any = None
 schedule_and_record: Any = None
@@ -86,7 +85,7 @@ Figure: Any = None
 
 def _init_pybaseball():
     """Lazy initialization of pybaseball to save startup memory."""
-    global fg_batting_data, fg_pitching_data, playerid_lookup, plotting, schedule_and_record
+    global playerid_lookup, plotting, schedule_and_record
     global statcast_batter, statcast_batter_exitvelo_barrels, statcast_batter_percentile_ranks
     global statcast_pitcher, statcast_pitcher_percentile_ranks, statcast_pitcher_pitch_arsenal
     global standings, plt, Figure, _pybaseball_initialized
@@ -111,8 +110,10 @@ def _init_pybaseball():
     pybaseball.cache.config.cache_directory = str(cache_path)
     pybaseball.cache.enable()
 
-    # FanGraphs actively blocks default Python/Requests User-Agents with a 403 Forbidden.
-    # We monkeypatch the requests.Session to always send a real browser User-Agent globally.
+    # Some pybaseball endpoints (Baseball Reference, etc.) 403 on the default
+    # Python/Requests User-Agent. Monkeypatch requests.Session to always send a
+    # real browser UA. FanGraphs itself is no longer hit via pybaseball — see
+    # fetch_fg_leaderboard() which uses curl_cffi to pass Cloudflare.
     import requests
 
     _orig_request = requests.Session.request
@@ -128,10 +129,6 @@ def _init_pybaseball():
     requests.Session.request = cast("Any", _mock_request)
 
     # Export names to globals ONLY if they are not already set (e.g. by a mock)
-    if fg_batting_data is None:
-        fg_batting_data = pybaseball.fg_batting_data
-    if fg_pitching_data is None:
-        fg_pitching_data = pybaseball.fg_pitching_data
     if playerid_lookup is None:
         playerid_lookup = pybaseball.playerid_lookup
     if plotting is None:
@@ -919,6 +916,54 @@ def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
 _PITCHING_KEYS = ["W", "L", "ERA", "FIP", "xFIP", "WHIP", "K/9", "BB/9", "HR/9", "WAR", "IP"]
 _BATTING_KEYS = ["AVG", "OBP", "SLG", "OPS", "wOBA", "wRC+", "HR", "RBI", "SB", "WAR", "PA"]
 
+_FG_API_URL = "https://www.fangraphs.com/api/leaders/major-league/data"
+_FG_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def fetch_fg_leaderboard(year: int, kind: str, qual: int | str = 1) -> pd.DataFrame:
+    """
+    Fetch a full FanGraphs season leaderboard via their JSON API.
+
+    Bypasses pybaseball's HTML scraping of leaders-legacy.aspx, which has been
+    behind Cloudflare (403 for plain requests) since mid-2025. Uses curl_cffi
+    with Chrome TLS fingerprinting to pass the challenge.
+
+    kind: "bat" or "pit".
+    qual: minimum PA (bat) or IP (pit). 1 = effectively no minimum.
+    Future / empty seasons return an empty DataFrame.
+    """
+    if kind not in ("bat", "pit"):
+        raise ValueError(f"kind must be 'bat' or 'pit', got {kind!r}")
+
+    from curl_cffi import requests as cc_requests
+
+    params = {
+        "age": "",
+        "pos": "all",
+        "stats": kind,
+        "lg": "all",
+        "qual": qual,
+        "season": year,
+        "season1": year,
+        "ind": 0,
+        "team": 0,
+        "month": 0,
+        "pageitems": 2000,
+    }
+    resp = cc_requests.get(_FG_API_URL, params=params, impersonate="chrome", timeout=20)
+    resp.raise_for_status()
+    rows = resp.json().get("data") or []
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    # Name/Team arrive wrapped in HTML anchor tags; strip them.
+    for col in ("Name", "Team"):
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace(_FG_HTML_TAG_RE, "", regex=True).str.strip()
+
+    return df
+
 
 def _name_match(df: pd.DataFrame, first: str, last: str) -> pd.DataFrame:
     """Filter FanGraphs DataFrame by player name (case-insensitive)."""
@@ -930,21 +975,12 @@ def fetch_player_stats(first: str, last: str, year: int) -> dict:
     """
     Fetch FanGraphs season stats for a player, auto-detecting pitcher vs batter.
 
-    Tries pitching first (qual=1 IP), then batting (qual=1 PA).
+    Tries pitching first, then batting.
     Returns dict with keys: type, team, stats.
     Raises ValueError if player not found in either leaderboard.
     """
-    _init_pybaseball()
-    # Try pitching first
-    try:
-        pitch_df = fg_pitching_data(year, qual=1)
-    except ValueError as e:
-        if "columns passed" in str(e):
-            pitch_df = pd.DataFrame()
-        else:
-            raise
-
-    if pitch_df is not None and not pitch_df.empty:
+    pitch_df = fetch_fg_leaderboard(year, "pit")
+    if not pitch_df.empty:
         row = _name_match(pitch_df, first, last)
         if not row.empty:
             r = row.iloc[0]
@@ -954,16 +990,8 @@ def fetch_player_stats(first: str, last: str, year: int) -> dict:
                 "stats": {k: _fmt(r.get(k)) for k in _PITCHING_KEYS if k in r.index},
             }
 
-    # Try batting
-    try:
-        bat_df = fg_batting_data(year, qual=1)
-    except ValueError as e:
-        if "columns passed" in str(e):
-            bat_df = pd.DataFrame()
-        else:
-            raise
-
-    if bat_df is not None and not bat_df.empty:
+    bat_df = fetch_fg_leaderboard(year, "bat")
+    if not bat_df.empty:
         row = _name_match(bat_df, first, last)
         if not row.empty:
             r = row.iloc[0]
@@ -990,17 +1018,10 @@ def fetch_career_stats(first: str, last: str) -> dict:
 
     Raises ValueError if player not found in either pitching or batting data.
     """
-    _init_pybaseball()
     cy = current_year()
 
-    try:
-        pitch_df = fg_pitching_data(cy, qual=1)
-    except ValueError as e:
-        if "columns passed" in str(e):
-            pitch_df = pd.DataFrame()
-        else:
-            raise
-    if pitch_df is not None and not pitch_df.empty:
+    pitch_df = fetch_fg_leaderboard(cy, "pit")
+    if not pitch_df.empty:
         row = _name_match(pitch_df, first, last)
         if not row.empty:
             r = row.iloc[0]
@@ -1010,14 +1031,8 @@ def fetch_career_stats(first: str, last: str) -> dict:
                 "stats": {k: _fmt(r.get(k)) for k in _PITCHING_KEYS if k in r.index},
             }
 
-    try:
-        bat_df = fg_batting_data(cy, qual=1)
-    except ValueError as e:
-        if "columns passed" in str(e):
-            bat_df = pd.DataFrame()
-        else:
-            raise
-    if bat_df is not None and not bat_df.empty:
+    bat_df = fetch_fg_leaderboard(cy, "bat")
+    if not bat_df.empty:
         row = _name_match(bat_df, first, last)
         if not row.empty:
             r = row.iloc[0]
@@ -1342,18 +1357,14 @@ def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd
     by the caller (asyncio.gather + Semaphore).
     """
     try:
-        _init_pybaseball()
-        fn = fg_pitching_data if player_type == "pitcher" else fg_batting_data
+        kind = "pit" if player_type == "pitcher" else "bat"
         log.info("FanGraphs: Requesting %s stats for %d...", player_type, yr)
 
-        try:
-            df = fn(yr, yr, qual=1)
-        except ValueError as e:
-            # FanGraphs returns a malformed 1-column response for future/empty years
-            if "columns passed" in str(e):
-                log.info("FanGraphs: No valid data for %d (likely future/empty season).", yr)
-                return None
-            raise
+        df = fetch_fg_leaderboard(yr, kind)
+
+        if df.empty:
+            log.info("FanGraphs: No valid data for %d (likely future/empty season).", yr)
+            return None
 
         if df is not None and not df.empty:
             res = _name_match(df, first, last)
@@ -1474,23 +1485,12 @@ def fetch_leaderboard(stat: str, year: int, player_type: str = "auto") -> list[d
         ]
 
     boards: list[list[dict]] = []
-    _init_pybaseball()
 
     if player_type in ("pitcher", "auto"):
-        try:
-            df = fg_pitching_data(year, qual=1)
-            boards.append(_from_df(df))
-        except ValueError as e:
-            if "columns passed" not in str(e):
-                raise
+        boards.append(_from_df(fetch_fg_leaderboard(year, "pit")))
 
     if player_type in ("batter", "auto"):
-        try:
-            df = fg_batting_data(year, qual=1)
-            boards.append(_from_df(df))
-        except ValueError as e:
-            if "columns passed" not in str(e):
-                raise
+        boards.append(_from_df(fetch_fg_leaderboard(year, "bat")))
 
     for board in boards:
         if board:

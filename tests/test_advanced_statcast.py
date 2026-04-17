@@ -19,6 +19,14 @@ from statcast import (
     fetch_percentile_ranks,
 )
 
+
+def _fg_side(pit: pd.DataFrame | None = None, bat: pd.DataFrame | None = None):
+    """Build a side_effect for patch('statcast.fetch_fg_leaderboard')."""
+    pit_df = pit if pit is not None else pd.DataFrame()
+    bat_df = bat if bat is not None else pd.DataFrame()
+    return lambda _year, kind, **_kw: pit_df if kind == "pit" else bat_df
+
+
 # ---------------------------------------------------------------------------
 # fetch_exit_velo
 # ---------------------------------------------------------------------------
@@ -187,27 +195,20 @@ class TestFetchCareerStats:
 
     def test_finds_pitcher(self) -> None:
         df = self._make_pitch_df("tarik skubal")
-        with (
-            patch("statcast.fg_pitching_data", return_value=df),
-            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
-        ):
+        with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(pit=df)):
             result = fetch_career_stats("tarik", "skubal")
         assert result["type"] == "pitcher"
         assert "ERA" in result["stats"]
 
     def test_falls_back_to_batter(self) -> None:
         bat_df = self._make_bat_df("riley greene")
-        with (
-            patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
-            patch("statcast.fg_batting_data", return_value=bat_df),
-        ):
+        with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(bat=bat_df)):
             result = fetch_career_stats("riley", "greene")
         assert result["type"] == "batter"
 
     def test_not_found_raises(self) -> None:
         with (
-            patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
-            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
+            patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side()),
             pytest.raises(ValueError, match="No FanGraphs career data"),
         ):
             fetch_career_stats("nobody", "here")
@@ -226,26 +227,19 @@ class TestFetchLeaderboard:
 
     def test_returns_top_10(self) -> None:
         df = self._make_pitch_df()
-        with (
-            patch("statcast.fg_pitching_data", return_value=df),
-            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
-        ):
+        with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(pit=df)):
             result = fetch_leaderboard("ERA", 2024, "pitcher")
         assert len(result) == 10
 
     def test_rank_starts_at_1(self) -> None:
         df = self._make_pitch_df()
-        with (
-            patch("statcast.fg_pitching_data", return_value=df),
-            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
-        ):
+        with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(pit=df)):
             result = fetch_leaderboard("ERA", 2024, "pitcher")
         assert result[0]["rank"] == 1
 
     def test_unknown_stat_raises(self) -> None:
         with (
-            patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
-            patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
+            patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side()),
             pytest.raises(ValueError, match="not found"),
         ):
             fetch_leaderboard("NONEXISTENT_STAT", 2024, "auto")
