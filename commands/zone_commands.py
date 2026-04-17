@@ -15,6 +15,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
 from persona import harry_error
 from statcast import fetch_batter_zone, fetch_pitcher_zone, resolve_player_id
 from utils import validate_statcast_year
@@ -39,6 +40,10 @@ class ZoneCommands(commands.Cog):
         first_name="Pitcher's first name",
         last_name="Pitcher's last name",
         year="Season year (e.g. 2023)",
+    )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
     )
     async def strikezone(
         self,
@@ -96,6 +101,10 @@ class ZoneCommands(commands.Cog):
         first_name="Batter's first name",
         last_name="Batter's last name",
         year="Season year (e.g. 2023)",
+    )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
     )
     async def battedzone(
         self,

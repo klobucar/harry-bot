@@ -13,6 +13,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
 from persona import harry_error
 from statcast import (
     aggregate_career_frames,
@@ -51,6 +52,10 @@ class AdvancedCommands(commands.Cog):
         player_type="Batter or pitcher",
     )
     @app_commands.choices(player_type=_PLAYER_TYPE_CHOICES)
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
+    )
     async def hotcold(
         self,
         interaction: discord.Interaction,
@@ -104,6 +109,10 @@ class AdvancedCommands(commands.Cog):
         first_name="Batter's first name",
         last_name="Batter's last name",
         year="Season year (2015 or later)",
+    )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
     )
     async def exitvelo(
         self,
@@ -159,6 +168,10 @@ class AdvancedCommands(commands.Cog):
         player_type="Batter or pitcher",
     )
     @app_commands.choices(player_type=_PLAYER_TYPE_CHOICES)
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
+    )
     async def percentile(
         self,
         interaction: discord.Interaction,
@@ -214,6 +227,10 @@ class AdvancedCommands(commands.Cog):
         first_name="Player's first name",
         last_name="Player's last name",
         last_n_years="Optional: limit to last N seasons (e.g. 3). Default: full career.",
+    )
+    @app_commands.autocomplete(
+        first_name=first_name_autocomplete,
+        last_name=last_name_autocomplete,
     )
     async def career(
         self,
