@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-10T02:16:33.152835Z"
+exclude-newer = "2026-04-10T03:20:27.377815Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -573,6 +573,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "pybaseball" },
+    { name = "tzdata" },
 ]
 
 [package.dev-dependencies]
@@ -594,6 +595,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.1" },
     { name = "pyarrow", specifier = ">=23.0.1" },
     { name = "pybaseball", specifier = ">=2.2.7" },
+    { name = "tzdata", specifier = ">=2026.1" },
 ]
 
 [package.metadata.requires-dev]
