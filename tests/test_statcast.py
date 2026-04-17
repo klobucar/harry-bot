@@ -221,3 +221,66 @@ class TestFetchFgLeaderboard:
             fetch_fg_leaderboard(2024, "pit")
         assert mock_get.call_args.kwargs["params"]["stats"] == "pit"
         assert mock_get.call_args.kwargs["params"]["season"] == 2024
+
+
+# ---------------------------------------------------------------------------
+# /schedule CoW regression (pybaseball 2.2.7 x pandas 2.x)
+# ---------------------------------------------------------------------------
+
+
+class TestScheduleUnknownAttendanceRegression:
+    """
+    Regression for the /schedule bug where pybaseball's process_schedule does
+    an inplace replace that silently no-ops under pandas 2.x Copy-on-Write,
+    leaving 'Unknown' strings in Attendance and making make_numeric's
+    astype(float) raise. statcast._patch_schedule_make_numeric replaces
+    make_numeric with a CoW-safe version; this test verifies it handles the
+    shape of data pybaseball actually hands it.
+    """
+
+    def test_unknown_attendance_becomes_nan_and_astype_float_succeeds(self) -> None:
+        import numpy as np
+
+        import statcast
+
+        statcast._init_pybaseball()  # applies the patch
+
+        import pybaseball.team_results as tr
+
+        df = pd.DataFrame(
+            {
+                "Attendance": ["45,000", "Unknown", "32,500", "Unknown"],
+                "R": [3.0, 1.0, 7.0, 2.0],
+                "RA": [2.0, 4.0, 3.0, 5.0],
+                "Inn": [9.0, 9.0, 10.0, 9.0],
+                "Rank": [1.0, 1.0, 1.0, 2.0],
+            }
+        )
+
+        result = tr.make_numeric(df.copy())
+
+        assert result["Attendance"].dtype == np.float64
+        assert result.loc[0, "Attendance"] == 45000.0
+        assert result.loc[2, "Attendance"] == 32500.0
+        assert pd.isna(result.loc[1, "Attendance"])
+        assert pd.isna(result.loc[3, "Attendance"])
+
+    def test_all_na_attendance_column_still_casts(self) -> None:
+        """If Attendance is entirely empty, make_numeric should fill with NaN."""
+        import statcast
+
+        statcast._init_pybaseball()
+
+        import pybaseball.team_results as tr
+
+        df = pd.DataFrame(
+            {
+                "Attendance": [None, None, None],
+                "R": [1.0, 2.0, 3.0],
+                "RA": [0.0, 1.0, 2.0],
+                "Inn": [9.0, 9.0, 9.0],
+                "Rank": [1.0, 1.0, 1.0],
+            }
+        )
+        result = tr.make_numeric(df.copy())
+        assert result["Attendance"].isna().all()

@@ -16,7 +16,7 @@ import os
 import re
 from datetime import date, timedelta
 from functools import wraps
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -28,18 +28,43 @@ import pandas as pd
 
 # --- Pybaseball Memory Optimization ---
 # Monkey-patch Pandas to use the high-performance PyArrow C++ engine globally.
-# This prevents Pybaseball from crashing the Fly.io 512MB RAM ceiling by
-# dropping dataframe read memory spikes from 250MB down to <5MB.
+# pybaseball wraps HTTP bodies in io.StringIO and hands them to pd.read_csv
+# with no kwargs; pyarrow accepts StringIO but spends an extra ~12 MiB per
+# parse on text→bytes re-buffering. Transparently rewrap as BytesIO so
+# pyarrow sees bytes up front — measured savings on a Judge-2024-size CSV
+# (2.1 MiB, 3337 rows x 118 cols): +17 MiB peak -> +5 MiB. Critical for staying under
+# the Fly.io 512 MiB ceiling during /hotzones / /zone / /spray fetches.
 _original_read_csv = pd.read_csv
 
 
 def fast_read_csv(*args, **kwargs):
-    kwargs["engine"] = "pyarrow"
-    try:
-        return _original_read_csv(*args, **kwargs)
-    except Exception:
-        kwargs.pop("engine", None)
-        return _original_read_csv(*args, **kwargs)
+    raw_bytes: bytes | None = None
+    if args and isinstance(args[0], StringIO):
+        raw_bytes = args[0].getvalue().encode("utf-8")
+
+    def _call(engine: str | None, dtype_backend: str | None) -> pd.DataFrame:
+        local_args = args if raw_bytes is None else (BytesIO(raw_bytes), *args[1:])
+        local_kwargs = dict(kwargs)
+        if engine is not None:
+            local_kwargs["engine"] = engine
+        else:
+            local_kwargs.pop("engine", None)
+        if dtype_backend is not None:
+            local_kwargs["dtype_backend"] = dtype_backend
+        else:
+            local_kwargs.pop("dtype_backend", None)
+        return _original_read_csv(*local_args, **local_kwargs)
+
+    # Try fastest path first (pyarrow engine + arrow-backed dtypes), fall back
+    # progressively if any caller feeds kwargs incompatible with pyarrow.
+    last_exc: Exception | None = None
+    for engine, backend in (("pyarrow", "pyarrow"), ("pyarrow", None), (None, None)):
+        try:
+            return _call(engine, backend)
+        except Exception as exc:
+            last_exc = exc
+    # All three attempts failed; surface the final error.
+    raise last_exc or RuntimeError("fast_read_csv: no attempt succeeded")
 
 
 pd.read_csv = cast("Any", fast_read_csv)
@@ -58,6 +83,32 @@ def fast_read_json(*args, **kwargs):
 
 pd.read_json = cast("Any", fast_read_json)
 # --------------------------------------
+
+
+def _patch_schedule_make_numeric() -> None:
+    """
+    Fix pybaseball 2.2.7's /schedule path under pandas 2.x Copy-on-Write.
+
+    process_schedule does `df['Attendance'].replace('Unknown', NaN, inplace=True)`
+    — a chained-assign inplace call that silently no-ops under CoW, leaving
+    raw 'Unknown' strings in the column. make_numeric then does .astype(float)
+    and raises ValueError. Replace make_numeric with a version that assigns
+    the cleaned Series back explicitly so the conversion sees NaNs.
+    """
+    import numpy as np
+    import pybaseball.team_results as tr
+
+    def _cow_safe_make_numeric(data: pd.DataFrame) -> pd.DataFrame:
+        if data["Attendance"].count() > 0:
+            data["Attendance"] = data["Attendance"].str.replace(",", "")
+            data["Attendance"] = data["Attendance"].replace(r"^Unknown$", np.nan, regex=True)
+        else:
+            data["Attendance"] = np.nan
+        num_cols = ["R", "RA", "Inn", "Rank", "Attendance"]
+        data[num_cols] = data[num_cols].astype(float)
+        return data
+
+    tr.make_numeric = cast("Any", _cow_safe_make_numeric)
 
 
 from utils import current_year
@@ -127,6 +178,8 @@ def _init_pybaseball():
         return _orig_request(self, method, url, **kwargs)
 
     requests.Session.request = cast("Any", _mock_request)
+
+    _patch_schedule_make_numeric()
 
     # Export names to globals ONLY if they are not already set (e.g. by a mock)
     if playerid_lookup is None:
