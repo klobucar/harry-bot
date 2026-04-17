@@ -11,7 +11,6 @@ from commands.autocomplete import (
     MAX_CHOICES,
     Player,
     _build_cache,
-    _player_label,
     filter_first_names,
     filter_last_names,
 )
@@ -72,29 +71,6 @@ class TestBuildCache:
 
 
 # ---------------------------------------------------------------------------
-# _player_label
-# ---------------------------------------------------------------------------
-
-
-class TestPlayerLabel:
-    def test_full_label(self) -> None:
-        p = Player(id=1, first="Aaron", last="Judge", team="NYY", position="RF")
-        assert _player_label(p) == "Aaron Judge (NYY RF)"
-
-    def test_missing_team(self) -> None:
-        p = Player(id=1, first="Aaron", last="Judge", team="", position="RF")
-        assert _player_label(p) == "Aaron Judge (RF)"
-
-    def test_missing_both(self) -> None:
-        p = Player(id=1, first="Aaron", last="Judge", team="", position="")
-        assert _player_label(p) == "Aaron Judge"
-
-    def test_clipped_to_100_chars(self) -> None:
-        p = Player(id=1, first="A" * 60, last="B" * 60, team="NYY", position="RF")
-        assert len(_player_label(p)) == 100
-
-
-# ---------------------------------------------------------------------------
 # filter_first_names — exercises dedup across shared first names
 # ---------------------------------------------------------------------------
 
@@ -141,20 +117,36 @@ class TestFilterFirstNames:
 
     def test_case_insensitive_prefix(self) -> None:
         cache = _make_cache((1, "Aaron", "Judge", "NYY", "RF"))
-        assert filter_first_names(cache, "aAr") == [("Aaron Judge (NYY RF)", "Aaron")]
+        assert filter_first_names(cache, "aAr") == [("Aaron", "Aaron")]
+
+    def test_label_equals_value(self) -> None:
+        """Display label and submit value are both just the first name."""
+        cache = _make_cache((1, "Aaron", "Judge", "NYY", "RF"))
+        label, value = filter_first_names(cache, "A")[0]
+        assert label == value == "Aaron"
+
+    def test_results_sorted_alphabetically(self) -> None:
+        """Sort by first name, not by (last, first) — so a common prefix returns
+        a balanced alphabetical slice instead of filling with last-name-A players."""
+        cache = _make_cache(
+            (1, "Juan", "Soto", "WSN", "OF"),
+            (2, "Jack", "Anderson", "BOS", "P"),
+            (3, "Jose", "Altuve", "HOU", "LF"),
+            (4, "Jacob", "Alu", "WSN", "3B"),
+        )
+        values = [v for _, v in filter_first_names(cache, "J")]
+        assert values == ["Jack", "Jacob", "Jose", "Juan"]
 
     def test_last_filter_narrows(self) -> None:
         """If user has already typed a last name, first-name choices are narrowed to matches."""
         cache = _make_cache(
             (1, "Aaron", "Judge", "NYY", "RF"),
-            (2, "Aaron", "Nola", "PHI", "SP"),
-            (3, "Aaron", "Hicks", "LAA", "OF"),
+            (2, "Mookie", "Betts", "LAD", "OF"),
+            (3, "Francisco", "Nola", "PHI", "SP"),
         )
-        # Empty first prefix + last filter "nol" → only "Aaron Nola"
+        # Empty first prefix + last filter "nol" → only "Francisco" (Nola's first)
         results = filter_first_names(cache, "", last_filter="nol")
-        assert len(results) == 1
-        assert results[0][1] == "Aaron"
-        assert "Nola" in results[0][0]
+        assert [v for _, v in results] == ["Francisco"]
 
     def test_limit_caps_at_max_choices(self) -> None:
         cache = {
@@ -162,12 +154,6 @@ class TestFilterFirstNames:
             for i in range(50)
         }
         assert len(filter_first_names(cache, "Chris", limit=MAX_CHOICES)) == MAX_CHOICES
-
-    def test_label_includes_team_and_position(self) -> None:
-        cache = _make_cache((1, "Aaron", "Judge", "NYY", "RF"))
-        label, _ = filter_first_names(cache, "A")[0]
-        assert "NYY" in label
-        assert "RF" in label
 
 
 # ---------------------------------------------------------------------------
