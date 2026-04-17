@@ -17,6 +17,7 @@ from statcast import (
     AB_EVENTS,
     HIT_EVENTS,
     compute_matchup_stats,
+    fetch_fg_leaderboard,
     resolve_player_id,
     season_range,
 )
@@ -170,3 +171,53 @@ class TestPersona:
     def test_harry_error_with_extra_contains_detail(self) -> None:
         msg = harry_error("connection refused")
         assert "connection refused" in msg
+
+
+# ---------------------------------------------------------------------------
+# fetch_fg_leaderboard (JSON API + HTML stripping)
+# ---------------------------------------------------------------------------
+
+
+class _FakeResp:
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return self._payload
+
+
+class TestFetchFgLeaderboard:
+    def test_strips_html_from_name_and_team(self) -> None:
+        payload = {
+            "data": [
+                {
+                    "Name": '<a href="statss.aspx?playerid=1">Aaron Judge</a>',
+                    "Team": '<a href="leaders.aspx?team=9">NYY</a>',
+                    "HR": 58.0,
+                }
+            ]
+        }
+        with patch("curl_cffi.requests.get", return_value=_FakeResp(payload)) as mock_get:
+            df = fetch_fg_leaderboard(2024, "bat")
+        assert df.iloc[0]["Name"] == "Aaron Judge"
+        assert df.iloc[0]["Team"] == "NYY"
+        # ensure impersonation is used, or FanGraphs 403s
+        assert mock_get.call_args.kwargs.get("impersonate") == "chrome"
+
+    def test_empty_data_returns_empty_df(self) -> None:
+        with patch("curl_cffi.requests.get", return_value=_FakeResp({"data": []})):
+            df = fetch_fg_leaderboard(2099, "pit")
+        assert df.empty
+
+    def test_rejects_unknown_kind(self) -> None:
+        with pytest.raises(ValueError, match="kind must be"):
+            fetch_fg_leaderboard(2024, "fielding")  # type: ignore[arg-type]
+
+    def test_sends_pit_stat_param_for_pitcher(self) -> None:
+        with patch("curl_cffi.requests.get", return_value=_FakeResp({"data": []})) as mock_get:
+            fetch_fg_leaderboard(2024, "pit")
+        assert mock_get.call_args.kwargs["params"]["stats"] == "pit"
+        assert mock_get.call_args.kwargs["params"]["season"] == 2024

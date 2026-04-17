@@ -324,12 +324,15 @@ def test_fetch_schedule_empty_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _fg_side(pit: pd.DataFrame | None = None, bat: pd.DataFrame | None = None):
+    pit_df = pit if pit is not None else pd.DataFrame()
+    bat_df = bat if bat is not None else pd.DataFrame()
+    return lambda _year, kind, **_kw: pit_df if kind == "pit" else bat_df
+
+
 def test_fetch_year_fangraphs_pitcher() -> None:
     df = pd.DataFrame([{"Name": "Tarik Skubal", "ERA": 2.39}])
-    with (
-        patch("statcast.fg_pitching_data", return_value=df),
-        patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
-    ):
+    with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(pit=df)):
         result = fetch_year_fangraphs(2024, "pitcher", "Tarik", "Skubal")
 
     assert isinstance(result, pd.DataFrame)
@@ -338,10 +341,7 @@ def test_fetch_year_fangraphs_pitcher() -> None:
 
 def test_fetch_year_fangraphs_batter() -> None:
     df = pd.DataFrame([{"Name": "Riley Greene", "AVG": 0.280}])
-    with (
-        patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
-        patch("statcast.fg_batting_data", return_value=df),
-    ):
+    with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(bat=df)):
         result = fetch_year_fangraphs(2024, "batter", "Riley", "Greene")
 
     assert isinstance(result, pd.DataFrame)
@@ -349,10 +349,7 @@ def test_fetch_year_fangraphs_batter() -> None:
 
 
 def test_fetch_year_fangraphs_not_found_raises() -> None:
-    with (
-        patch("statcast.fg_pitching_data", return_value=pd.DataFrame()),
-        patch("statcast.fg_batting_data", return_value=pd.DataFrame()),
-    ):
+    with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side()):
         result = fetch_year_fangraphs(2024, "pitcher", "nobody", "here")
         assert result is None
 
