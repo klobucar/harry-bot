@@ -21,7 +21,7 @@ from commands.autocomplete import (
 )
 from persona import harry_error
 from statcast import compute_matchup_stats, fetch_matchup_zone, resolve_player_id
-from utils import validate_statcast_year
+from utils import current_season, validate_statcast_year
 
 _pitcher_first_ac = make_first_name_autocomplete("pitcher_last")
 _pitcher_last_ac = make_last_name_autocomplete("pitcher_first")
@@ -81,7 +81,7 @@ class MatchupCommands(commands.Cog):
         pitcher_last="Pitcher's last name",
         batter_first="Batter's first name",
         batter_last="Batter's last name",
-        year="Season year (e.g. 2023)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         pitcher_first=_pitcher_first_ac,
@@ -96,8 +96,9 @@ class MatchupCommands(commands.Cog):
         pitcher_last: str,
         batter_first: str,
         batter_last: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
@@ -165,7 +166,7 @@ class MatchupCommands(commands.Cog):
         pitcher_last="Pitcher's last name",
         batter_first="Batter's first name",
         batter_last="Batter's last name",
-        year="Season year (e.g. 2023)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         pitcher_first=_pitcher_first_ac,
@@ -180,8 +181,9 @@ class MatchupCommands(commands.Cog):
         pitcher_last: str,
         batter_first: str,
         batter_last: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return

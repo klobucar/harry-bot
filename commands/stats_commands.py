@@ -23,7 +23,7 @@ from statcast import (
     fetch_player_stats,
     resolve_player_id,
 )
-from utils import validate_fangraphs_year, validate_statcast_year
+from utils import current_season, validate_fangraphs_year, validate_statcast_year
 
 log = logging.getLogger("harry")
 
@@ -44,7 +44,7 @@ class StatsCommands(commands.Cog):
     @app_commands.describe(
         first_name="Pitcher's first name",
         last_name="Pitcher's last name",
-        year="Season year (e.g. 2024)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         first_name=first_name_autocomplete,
@@ -55,8 +55,9 @@ class StatsCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
@@ -109,7 +110,7 @@ class StatsCommands(commands.Cog):
     @app_commands.describe(
         first_name="Player's first name",
         last_name="Player's last name",
-        year="Season year (e.g. 2024)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         first_name=first_name_autocomplete,
@@ -120,8 +121,9 @@ class StatsCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_fangraphs_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
@@ -167,7 +169,7 @@ class StatsCommands(commands.Cog):
         p1_last="First player's last name",
         p2_first="Second player's first name",
         p2_last="Second player's last name",
-        year="Season year (e.g. 2024)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         p1_first=make_first_name_autocomplete("p1_last"),
@@ -182,8 +184,9 @@ class StatsCommands(commands.Cog):
         p1_last: str,
         p2_first: str,
         p2_last: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_fangraphs_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return

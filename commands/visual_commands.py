@@ -18,7 +18,7 @@ from discord.ext import commands
 from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
 from persona import harry_error
 from statcast import fetch_hitter_hotzones, fetch_spray_chart, fetch_stadium_info, resolve_player_id
-from utils import validate_statcast_year
+from utils import current_season, validate_statcast_year
 
 log = logging.getLogger("harry")
 
@@ -41,7 +41,7 @@ class VisualCommands(commands.Cog):
     @app_commands.describe(
         first_name="Batter's first name",
         last_name="Batter's last name",
-        year="Season year (e.g. 2023)",
+        year="Season year (e.g. 2024). Defaults to current season.",
         team_stadium="Stadium to use, e.g. 'tigers', 'yankees', 'generic'",
     )
     @app_commands.autocomplete(
@@ -53,9 +53,10 @@ class VisualCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
         team_stadium: str = "generic",
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
@@ -107,7 +108,7 @@ class VisualCommands(commands.Cog):
     @app_commands.describe(
         first_name="Batter's first name",
         last_name="Batter's last name",
-        year="Season year (e.g. 2024)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         first_name=first_name_autocomplete,
@@ -118,8 +119,9 @@ class VisualCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return

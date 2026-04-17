@@ -25,7 +25,7 @@ from statcast import (
     fetch_year_fangraphs,
     resolve_player_id,
 )
-from utils import current_year, validate_fangraphs_year, validate_statcast_year
+from utils import current_season, current_year, validate_fangraphs_year, validate_statcast_year
 
 log = logging.getLogger("harry")
 
@@ -108,7 +108,7 @@ class AdvancedCommands(commands.Cog):
     @app_commands.describe(
         first_name="Batter's first name",
         last_name="Batter's last name",
-        year="Season year (2015 or later)",
+        year="Season year (2015 or later). Defaults to current season.",
     )
     @app_commands.autocomplete(
         first_name=first_name_autocomplete,
@@ -119,8 +119,9 @@ class AdvancedCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
@@ -164,7 +165,7 @@ class AdvancedCommands(commands.Cog):
     @app_commands.describe(
         first_name="Player's first name",
         last_name="Player's last name",
-        year="Season year (2015 or later)",
+        year="Season year (2015 or later). Defaults to current season.",
         player_type="Batter or pitcher",
     )
     @app_commands.choices(player_type=_PLAYER_TYPE_CHOICES)
@@ -177,9 +178,10 @@ class AdvancedCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
         player_type: str = "pitcher",
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
@@ -307,7 +309,7 @@ class AdvancedCommands(commands.Cog):
     @app_commands.command(name="leaderboard", description="Top 10 players for any FanGraphs stat.")
     @app_commands.describe(
         stat="Stat column name, e.g. ERA, WAR, HR, K%, OPS, wRC+, FIP",
-        year="Season year (2002 or later)",
+        year="Season year (2002 or later). Defaults to current season.",
         player_type="Batter, pitcher, or auto-detect",
     )
     @app_commands.choices(
@@ -321,9 +323,10 @@ class AdvancedCommands(commands.Cog):
         self,
         interaction: discord.Interaction,
         stat: str,
-        year: int,
+        year: int | None = None,
         player_type: str = "auto",
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_fangraphs_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
