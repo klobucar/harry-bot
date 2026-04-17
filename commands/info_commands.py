@@ -13,6 +13,7 @@ from discord.ext import commands
 
 from persona import harry_error
 from statcast import fetch_schedule, fetch_standings
+from utils import current_season
 
 log = logging.getLogger("harry")
 
@@ -37,8 +38,9 @@ class InfoCommands(commands.Cog):
     async def standings(
         self,
         interaction: discord.Interaction,
-        year: int = 2025,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         await interaction.response.defer(thinking=True)
         log.info("/standings called: %d", year)
 
@@ -72,14 +74,15 @@ class InfoCommands(commands.Cog):
     )
     @app_commands.describe(
         team=f"Team abbreviation — {TEAM_ABBREVS}",
-        year="Season year (e.g. 2025)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     async def schedule(
         self,
         interaction: discord.Interaction,
         team: str,
-        year: int = 2025,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         await interaction.response.defer(thinking=True)
 
         team_upper = team.strip().upper()

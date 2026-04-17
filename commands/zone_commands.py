@@ -18,7 +18,7 @@ from discord.ext import commands
 from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
 from persona import harry_error
 from statcast import fetch_batter_zone, fetch_pitcher_zone, resolve_player_id
-from utils import validate_statcast_year
+from utils import current_season, validate_statcast_year
 
 log = logging.getLogger("harry")
 
@@ -39,7 +39,7 @@ class ZoneCommands(commands.Cog):
     @app_commands.describe(
         first_name="Pitcher's first name",
         last_name="Pitcher's last name",
-        year="Season year (e.g. 2023)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         first_name=first_name_autocomplete,
@@ -50,8 +50,9 @@ class ZoneCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
@@ -100,7 +101,7 @@ class ZoneCommands(commands.Cog):
     @app_commands.describe(
         first_name="Batter's first name",
         last_name="Batter's last name",
-        year="Season year (e.g. 2023)",
+        year="Season year (e.g. 2024). Defaults to current season.",
     )
     @app_commands.autocomplete(
         first_name=first_name_autocomplete,
@@ -111,8 +112,9 @@ class ZoneCommands(commands.Cog):
         interaction: discord.Interaction,
         first_name: str,
         last_name: str,
-        year: int,
+        year: int | None = None,
     ) -> None:
+        year = year if year is not None else current_season()
         if err := validate_statcast_year(year):
             await interaction.response.send_message(harry_error(err), ephemeral=True)
             return
