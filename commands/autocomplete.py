@@ -139,48 +139,40 @@ async def _ensure_cache() -> dict[int, Player]:
 # ---------------------------------------------------------------------------
 
 
-def _player_label(p: Player) -> str:
-    """Human-friendly display label, clipped to Discord's 100-char choice-name limit."""
-    pieces = [f"{p.first} {p.last}"]
-    tail = " ".join(x for x in (p.team, p.position) if x)
-    if tail:
-        pieces.append(f"({tail})")
-    return " ".join(pieces)[:100]
-
-
 def filter_first_names(
     players: dict[int, Player],
     prefix: str,
     last_filter: str = "",
     limit: int = MAX_CHOICES,
 ) -> list[tuple[str, str]]:
-    """Return up to `limit` (display_label, value) tuples for the first-name field.
+    """Distinct first names matching `prefix`, sorted A-Z, capped at `limit`.
 
-    - `prefix` filters by first-name prefix (case-insensitive).
-    - `last_filter` further narrows to players whose last name starts with it
-      (so if user already typed a last name, first-name picks are relevant).
-    - Distinct first names only; the label shows the FIRST matching full name
-      so the user can visually confirm it's the right player.
+    Returns a list of (display_label, submit_value) tuples where display_label
+    and submit_value are both the first name itself (e.g. ("Aaron", "Aaron")) —
+    when the user is picking a first name, showing a single player's full name
+    + team as the label is misleading because many players share the prefix.
+
+    - `prefix` (case-insensitive): filter by first-name prefix.
+    - `last_filter` (case-insensitive): if set, only include first names of
+      players whose last name starts with it (cross-field narrowing).
+    - Iterates the distinct-first-name *set*, not players sorted by last name,
+      so that a common prefix like "J" returns a balanced alphabetical slice
+      (Jack, Jacob, Jake, Jason, ...) rather than filling all 25 slots with
+      last-name-A surnames before any B+ gets a look.
     """
     p_low = prefix.lower().strip()
     l_low = last_filter.lower().strip()
-    seen_firsts: set[str] = set()
-    results: list[tuple[str, str]] = []
 
-    # Stable sort by (last, first) so displayed defaults look orderly
-    ordered = sorted(players.values(), key=lambda p: (p.last.lower(), p.first.lower()))
-    for p in ordered:
-        if len(results) >= limit:
-            break
+    distinct: set[str] = set()
+    for p in players.values():
         if p_low and not p.first.lower().startswith(p_low):
             continue
         if l_low and not p.last.lower().startswith(l_low):
             continue
-        if p.first in seen_firsts:
-            continue
-        seen_firsts.add(p.first)
-        results.append((_player_label(p), p.first))
-    return results
+        distinct.add(p.first)
+
+    ordered = sorted(distinct, key=str.lower)[:limit]
+    return [(name, name) for name in ordered]
 
 
 def filter_last_names(
@@ -189,28 +181,23 @@ def filter_last_names(
     first_filter: str = "",
     limit: int = MAX_CHOICES,
 ) -> list[tuple[str, str]]:
-    """Return up to `limit` (display_label, value) tuples for the last-name field.
+    """Distinct last names matching `prefix`, sorted A-Z, capped at `limit`.
 
     Mirror of filter_first_names with the roles swapped.
     """
     p_low = prefix.lower().strip()
     f_low = first_filter.lower().strip()
-    seen_lasts: set[str] = set()
-    results: list[tuple[str, str]] = []
 
-    ordered = sorted(players.values(), key=lambda p: (p.last.lower(), p.first.lower()))
-    for p in ordered:
-        if len(results) >= limit:
-            break
+    distinct: set[str] = set()
+    for p in players.values():
         if p_low and not p.last.lower().startswith(p_low):
             continue
         if f_low and not p.first.lower().startswith(f_low):
             continue
-        if p.last in seen_lasts:
-            continue
-        seen_lasts.add(p.last)
-        results.append((_player_label(p), p.last))
-    return results
+        distinct.add(p.last)
+
+    ordered = sorted(distinct, key=str.lower)[:limit]
+    return [(name, name) for name in ordered]
 
 
 # ---------------------------------------------------------------------------
