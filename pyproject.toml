@@ -12,6 +12,7 @@ dependencies = [
     "pybaseball>=2.2.7",
     "google-genai>=1.67.0",
     "curl-cffi>=0.15.0",
+    "tzdata>=2026.1",
 ]
 
 
