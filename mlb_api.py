@@ -226,6 +226,7 @@ def fetch_live_scores(team: str) -> list[dict]:
 
         games.append(
             {
+                "game_pk": game.get("gamePk"),
                 "home_team": home["team"]["name"],
                 "away_team": away["team"]["name"],
                 "home_score": home.get("score", 0),

@@ -20,6 +20,7 @@ async def setup(bot: HarryBot) -> None:
     from commands.matchup_commands import MatchupCommands
     from commands.meta_commands import MetaCommands
     from commands.mlb_commands import MLBCommands
+    from commands.presence_task import PresenceTask
     from commands.stats_commands import StatsCommands
     from commands.visual_commands import VisualCommands
     from commands.zone_commands import ZoneCommands
@@ -33,3 +34,4 @@ async def setup(bot: HarryBot) -> None:
     await bot.add_cog(AdvancedCommands(bot))
     await bot.add_cog(AICommands(bot))
     await bot.add_cog(MetaCommands(bot))
+    await bot.add_cog(PresenceTask(bot))
