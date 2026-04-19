@@ -11,7 +11,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from persona import harry_error
+from persona import harry_error, safe_exc_label
 from statcast import fetch_schedule, fetch_standings
 from utils import current_season
 
@@ -51,7 +51,7 @@ class InfoCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /standings")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         embed = discord.Embed(
@@ -95,7 +95,7 @@ class InfoCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /schedule")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         embed = discord.Embed(

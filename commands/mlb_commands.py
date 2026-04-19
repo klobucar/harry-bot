@@ -20,7 +20,7 @@ from mlb_api import (
     fetch_roster,
     fetch_transactions,
 )
-from persona import harry_error
+from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
 
@@ -50,7 +50,7 @@ class MLBCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/roster error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         # Group by position type
@@ -93,7 +93,7 @@ class MLBCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/injury error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         if not players:
@@ -132,7 +132,7 @@ class MLBCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/transactions error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         lines = [f"{m['date']}  {m['desc']}" for m in moves[:15]]
@@ -161,7 +161,7 @@ class MLBCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/livescore error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         embed = discord.Embed(
@@ -196,7 +196,7 @@ class MLBCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/nextgame error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         embed = discord.Embed(

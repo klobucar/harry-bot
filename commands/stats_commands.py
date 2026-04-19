@@ -17,7 +17,7 @@ from commands.autocomplete import (
     make_first_name_autocomplete,
     make_last_name_autocomplete,
 )
-from persona import harry_error
+from persona import harry_error, safe_exc_label
 from statcast import (
     fetch_pitch_arsenal,
     fetch_player_stats,
@@ -79,7 +79,7 @@ class StatsCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /arsenal")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         # Format as a compact code-block table
@@ -139,7 +139,7 @@ class StatsCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /stats")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         player_type = result["type"]  # "pitcher" or "batter"
@@ -204,7 +204,7 @@ class StatsCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /compare")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         if p1_result["type"] != p2_result["type"]:

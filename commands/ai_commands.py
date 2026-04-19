@@ -16,7 +16,7 @@ from discord.ext import commands
 from google import genai
 from google.genai import types
 
-from persona import harry_error
+from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
 
@@ -248,13 +248,7 @@ class AICommands(commands.Cog):
             )
         except Exception as exc:
             log.exception("/junkstats error")
-            # Swallow technical details for Gemini/API errors to keep Harry in character.
-            from google.genai import errors
-
-            if isinstance(exc, errors.ClientError):
-                await interaction.followup.send(harry_error())
-            else:
-                await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
 
 
 async def setup(bot: commands.Bot) -> None:

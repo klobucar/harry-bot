@@ -9,7 +9,6 @@ No Discord imports — pure data / plot logic, making this independently testabl
 
 from __future__ import annotations
 
-import gc
 import importlib.resources
 import logging
 import os
@@ -27,14 +26,19 @@ if TYPE_CHECKING:
 import pandas as pd
 
 # --- Pybaseball Memory Optimization ---
-# Monkey-patch Pandas to use the high-performance PyArrow C++ engine globally.
+# Monkey-patch Pandas to use the high-performance PyArrow C++ engine.
 # pybaseball wraps HTTP bodies in io.StringIO and hands them to pd.read_csv
 # with no kwargs; pyarrow accepts StringIO but spends an extra ~12 MiB per
 # parse on text→bytes re-buffering. Transparently rewrap as BytesIO so
 # pyarrow sees bytes up front — measured savings on a Judge-2024-size CSV
 # (2.1 MiB, 3337 rows x 118 cols): +17 MiB peak -> +5 MiB. Critical for staying under
 # the Fly.io 512 MiB ceiling during /hotzones / /zone / /spray fetches.
+#
+# The patch is APPLIED inside _init_pybaseball() (first command call), not at
+# module import — importing statcast for type hints / tests must not silently
+# replace pandas globals.
 _original_read_csv = pd.read_csv
+_original_read_json = pd.read_json
 
 
 def fast_read_csv(*args, **kwargs):
@@ -67,11 +71,6 @@ def fast_read_csv(*args, **kwargs):
     raise last_exc or RuntimeError("fast_read_csv: no attempt succeeded")
 
 
-pd.read_csv = cast("Any", fast_read_csv)
-
-_original_read_json = pd.read_json
-
-
 def fast_read_json(*args, **kwargs):
     kwargs["engine"] = "pyarrow"
     try:
@@ -79,10 +78,6 @@ def fast_read_json(*args, **kwargs):
     except Exception:
         kwargs.pop("engine", None)
         return _original_read_json(*args, **kwargs)
-
-
-pd.read_json = cast("Any", fast_read_json)
-# --------------------------------------
 
 
 def _patch_schedule_make_numeric() -> None:
@@ -145,6 +140,12 @@ def _init_pybaseball():
     # Individual checks below handle cases where some parts are mocked.
     if _pybaseball_initialized:
         return
+
+    # Quarantined pandas patches: applied here, not at module import, so that
+    # importing statcast.py for type hints / unrelated tests doesn't silently
+    # rebind pd.read_csv / pd.read_json. See fast_read_csv docstring above.
+    pd.read_csv = cast("Any", fast_read_csv)
+    pd.read_json = cast("Any", fast_read_json)
 
     import pybaseball
     import pybaseball.cache
@@ -349,7 +350,6 @@ def plot_to_buffer(data: pd.DataFrame, title: str, colorby: str = "pitch_type") 
         del ax
         del fig
         del data
-        gc.collect()
 
     return buf
 
@@ -375,7 +375,6 @@ def fetch_pitcher_zone(player_id: int, year: int, player_name: str) -> BytesIO:
     # Memory optimization: plot_strike_zone only needs plate_x, plate_z, pitch_type
     data = raw[["plate_x", "plate_z", "pitch_type"]].copy()
     del raw
-    gc.collect()
 
     return plot_to_buffer(data, title=f"{player_name} — {year} Strike Zone")
 
@@ -397,7 +396,6 @@ def fetch_batter_zone(player_id: int, year: int, player_name: str) -> BytesIO:
     # Memory optimization: plot_strike_zone only needs plate_x, plate_z, pitch_type
     data = raw[["plate_x", "plate_z", "pitch_type"]].copy()
     del raw
-    gc.collect()
 
     return plot_to_buffer(data, title=f"{player_name} — {year} Pitches Received")
 
@@ -427,7 +425,6 @@ def fetch_hitter_hotzones(player_id: int, year: int, player_name: str) -> BytesI
     # Drop the other ~90 columns immediately to free ~95% of memory.
     data = raw[["zone", "events"]].copy()
     del raw
-    gc.collect()
 
     # 1. Filter to result events (ABs)
     # events: single, double, triple, home_run are hits.
@@ -547,7 +544,6 @@ def fetch_hitter_hotzones(player_id: int, year: int, player_name: str) -> BytesI
         del ax
         del fig
         del data
-        gc.collect()
 
     return buf
 
@@ -576,7 +572,6 @@ def fetch_matchup_zone(
     # Memory optimization: subset to needed columns before filtering
     data = raw[["pitcher", "plate_x", "plate_z", "pitch_type"]].copy()
     del raw
-    gc.collect()
 
     matchup: pd.DataFrame = data[data["pitcher"] == pitcher_id].copy()
     del data
@@ -610,7 +605,6 @@ def compute_matchup_stats(
     # Memory optimization: only need pitcher + events columns
     data = raw[["pitcher", "events"]].copy()
     del raw
-    gc.collect()
 
     matchup: pd.DataFrame = data[data["pitcher"] == pitcher_id]
     del data
@@ -641,7 +635,6 @@ def compute_matchup_stats(
     del matchup
     del atbats
     del hits
-    gc.collect()
 
     return stats
 
@@ -785,7 +778,6 @@ def fetch_spray_chart(
     keep_cols = ["type", "hc_x", "hc_y", "events", "home_team"]
     data = raw[[c for c in keep_cols if c in raw.columns]].copy()
     del raw
-    gc.collect()
 
     # spraychart only makes sense for in-play events with coordinates
     in_play = data[data["type"] == "X"].dropna(subset=["hc_x", "hc_y"])
@@ -826,7 +818,6 @@ def fetch_spray_chart(
         del ax
         del fig
         del in_play
-        gc.collect()
 
     return buf
 
@@ -882,7 +873,6 @@ def fetch_stadium_info(team_alias: str) -> dict:
         plt.close(fig)
         del ax
         del fig
-        gc.collect()
 
     return {
         "name": name,
@@ -1232,7 +1222,6 @@ def fetch_hot_cold(
     # Memory optimization: only need events column for stat calculations
     data = raw[["events"]].copy()
     del raw
-    gc.collect()
 
     if data.empty:
         raise ValueError(f"No Statcast data for {player_name} in the last {days} days.")
@@ -1286,7 +1275,6 @@ def fetch_hot_cold(
     del data
     del ab_df
     del hit_df
-    gc.collect()
 
     return stats
 
@@ -1414,32 +1402,21 @@ def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd
         log.info("FanGraphs: Requesting %s stats for %d...", player_type, yr)
 
         df = fetch_fg_leaderboard(yr, kind)
-
         if df.empty:
             log.info("FanGraphs: No valid data for %d (likely future/empty season).", yr)
             return None
 
-        if df is not None and not df.empty:
-            res = _name_match(df, first, last)
+        res = _name_match(df, first, last)
+        if res.empty:
+            return None
 
-            # Immediately delete the full MLB dataframe chunk to clear RAM
-            del df
-            gc.collect()
-
-            if not res.empty:
-                log.info("FanGraphs: Found %s %s for %s in %d.", first, last, player_type, yr)
-                res = res.copy()
-                res["_year"] = yr
-                return res
-        else:
-            if df is not None:
-                del df
-            gc.collect()
-
-        log.warning("FanGraphs: Returned empty dataframe for %s in %d.", player_type, yr)
+        log.info("FanGraphs: Found %s %s for %s in %d.", first, last, player_type, yr)
+        res = res.copy()
+        res["_year"] = yr
+        return res
     except Exception as exc:
         log.exception("FanGraphs Error [%s %d]: %s", player_type, yr, exc)
-    return None
+        return None
 
 
 def aggregate_career_frames(
