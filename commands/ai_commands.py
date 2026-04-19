@@ -186,7 +186,7 @@ class AICommands(commands.Cog):
             "Series sweeps in April",
             "Wins against left-handed starters",
             "One-run victories in dome stadiums",
-            "Winning streaks during the second half"
+            "Winning streaks during the second half",
             # --- TRUELY OBSCURE ---
             "Ground ball-to-fly ball ratio (GB/FB)",
             "Opponent Batting Average on a 3-1 count",
