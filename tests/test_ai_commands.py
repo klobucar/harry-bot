@@ -70,8 +70,9 @@ async def test_junkstats_api_error(mock_client_class, bot, interaction):
 
     interaction.followup.send.assert_called_once()
     args, _ = interaction.followup.send.call_args
-    # Generic exceptions should still show technical details
-    assert "General Error" in args[0]
+    # Generic exceptions surface a class-name label, not the raw message
+    assert "General Error" not in args[0]
+    assert "Exception" in args[0]
 
 
 @pytest.mark.anyio

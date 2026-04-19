@@ -16,7 +16,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
-from persona import harry_error
+from persona import harry_error, safe_exc_label
 from statcast import fetch_hitter_hotzones, fetch_spray_chart, fetch_stadium_info, resolve_player_id
 from utils import current_season, validate_statcast_year
 
@@ -83,7 +83,7 @@ class VisualCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /spraychart")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         file = discord.File(fp=buf, filename="spraychart.png")
@@ -147,7 +147,7 @@ class VisualCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /hotzones")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         file = discord.File(fp=buf, filename="hotzones.png")
@@ -184,7 +184,7 @@ class VisualCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /stadium")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         file = discord.File(fp=info["image"], filename="stadium.png")

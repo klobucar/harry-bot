@@ -14,7 +14,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
-from persona import harry_error
+from persona import harry_error, safe_exc_label
 from statcast import (
     aggregate_career_frames,
     fetch_exit_velo,
@@ -85,7 +85,7 @@ class AdvancedCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/hotcold error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         emoji = "🔥" if player_type == "batter" else "⚾"
@@ -144,7 +144,7 @@ class AdvancedCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/exitvelo error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         embed = discord.Embed(
@@ -206,7 +206,7 @@ class AdvancedCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/percentile error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         embed = discord.Embed(
@@ -274,7 +274,7 @@ class AdvancedCommands(commands.Cog):
             results = await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as exc:
             log.exception("/career gather error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         pitch_frames, bat_frames = [], []
@@ -342,7 +342,7 @@ class AdvancedCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("/leaderboard error")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         rows = "\n".join(

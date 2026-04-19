@@ -19,7 +19,7 @@ from commands.autocomplete import (
     make_first_name_autocomplete,
     make_last_name_autocomplete,
 )
-from persona import harry_error
+from persona import harry_error, safe_exc_label
 from statcast import compute_matchup_stats, fetch_matchup_zone, resolve_player_id
 from utils import current_season, validate_statcast_year
 
@@ -131,7 +131,7 @@ class MatchupCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /matchup")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         avg_display = f".{round(stats['batting_avg'] * 1000):03d}"
@@ -216,7 +216,7 @@ class MatchupCommands(commands.Cog):
             return
         except Exception as exc:
             log.exception("Unexpected error in /matchupzone")
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)))
             return
 
         file = discord.File(fp=buf, filename="matchupzone.png")
