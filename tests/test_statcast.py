@@ -12,12 +12,12 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from fangraphs import fetch_fg_leaderboard
 from persona import harry_error
 from statcast import (
     AB_EVENTS,
     HIT_EVENTS,
     compute_matchup_stats,
-    fetch_fg_leaderboard,
     resolve_player_id,
     season_range,
 )
