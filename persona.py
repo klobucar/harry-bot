@@ -34,3 +34,18 @@ def harry_error(extra: str = "") -> str:
     if extra:
         return f"{base}\n-# *(Technical detail: {extra})*"
     return base
+
+
+def safe_exc_label(exc: BaseException) -> str:
+    """Short, leak-free label for an unexpected exception.
+
+    Returns the class name plus an HTTP status code when the exception is
+    a requests.HTTPError. Avoids surfacing message bodies, file paths,
+    or stack frames — those go to the log via log.exception().
+    """
+    name = type(exc).__name__
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if status is not None:
+        return f"{name} {status}"
+    return name
