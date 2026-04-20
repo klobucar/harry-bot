@@ -14,6 +14,7 @@ import pytest
 from matplotlib.figure import Figure as RealFigure
 
 import statcast
+from fangraphs import fetch_year_fangraphs
 from statcast import (
     fetch_batter_zone,
     fetch_hitter_hotzones,
@@ -24,7 +25,6 @@ from statcast import (
     fetch_spray_chart,
     fetch_stadium_info,
     fetch_standings,
-    fetch_year_fangraphs,
 )
 
 
@@ -332,7 +332,7 @@ def _fg_side(pit: pd.DataFrame | None = None, bat: pd.DataFrame | None = None):
 
 def test_fetch_year_fangraphs_pitcher() -> None:
     df = pd.DataFrame([{"Name": "Tarik Skubal", "ERA": 2.39}])
-    with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(pit=df)):
+    with patch("fangraphs.fetch_fg_leaderboard", side_effect=_fg_side(pit=df)):
         result = fetch_year_fangraphs(2024, "pitcher", "Tarik", "Skubal")
 
     assert isinstance(result, pd.DataFrame)
@@ -341,7 +341,7 @@ def test_fetch_year_fangraphs_pitcher() -> None:
 
 def test_fetch_year_fangraphs_batter() -> None:
     df = pd.DataFrame([{"Name": "Riley Greene", "AVG": 0.280}])
-    with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side(bat=df)):
+    with patch("fangraphs.fetch_fg_leaderboard", side_effect=_fg_side(bat=df)):
         result = fetch_year_fangraphs(2024, "batter", "Riley", "Greene")
 
     assert isinstance(result, pd.DataFrame)
@@ -349,7 +349,7 @@ def test_fetch_year_fangraphs_batter() -> None:
 
 
 def test_fetch_year_fangraphs_not_found_raises() -> None:
-    with patch("statcast.fetch_fg_leaderboard", side_effect=_fg_side()):
+    with patch("fangraphs.fetch_fg_leaderboard", side_effect=_fg_side()):
         result = fetch_year_fangraphs(2024, "pitcher", "nobody", "here")
         assert result is None
 

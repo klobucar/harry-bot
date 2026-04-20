@@ -17,12 +17,9 @@ from commands.autocomplete import (
     make_first_name_autocomplete,
     make_last_name_autocomplete,
 )
+from fangraphs import fetch_player_stats
 from persona import harry_error, safe_exc_label
-from statcast import (
-    fetch_pitch_arsenal,
-    fetch_player_stats,
-    resolve_player_id,
-)
+from statcast import fetch_pitch_arsenal, resolve_player_id
 from utils import current_season, validate_fangraphs_year, validate_statcast_year
 
 log = logging.getLogger("harry")
