@@ -35,6 +35,7 @@ class InfoCommands(commands.Cog):
         description="Show MLB division standings for a given season.",
     )
     @app_commands.describe(year="Season year (e.g. 2024). Defaults to current season.")
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def standings(
         self,
         interaction: discord.Interaction,
@@ -76,6 +77,7 @@ class InfoCommands(commands.Cog):
         team=f"Team abbreviation — {TEAM_ABBREVS}",
         year="Season year (e.g. 2024). Defaults to current season.",
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def schedule(
         self,
         interaction: discord.Interaction,

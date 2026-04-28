@@ -48,6 +48,7 @@ class VisualCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def spraychart(
         self,
         interaction: discord.Interaction,
@@ -114,6 +115,7 @@ class VisualCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def hotzones(
         self,
         interaction: discord.Interaction,
@@ -169,6 +171,7 @@ class VisualCommands(commands.Cog):
         description="Show a ballpark's name, location, and visual outline.",
     )
     @app_commands.describe(team="Team abbreviation or name, e.g. DET, Yankees, Fenway")
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def stadium(
         self,
         interaction: discord.Interaction,

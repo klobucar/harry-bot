@@ -45,6 +45,7 @@ class ZoneCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def strikezone(
         self,
         interaction: discord.Interaction,
@@ -107,6 +108,7 @@ class ZoneCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def battedzone(
         self,
         interaction: discord.Interaction,
