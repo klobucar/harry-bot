@@ -11,7 +11,10 @@ import logging
 import os
 
 import discord
+from discord import app_commands
 from discord.ext import commands
+
+from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
 log.setLevel(logging.INFO)
@@ -56,6 +59,28 @@ class HarryBot(commands.Bot):
                 await interaction.response.send_message(_OWNER_ONLY_DM_MSG, ephemeral=True)
                 return False
             return True
+
+        # Global error handler: translate cooldown rejections into Harry's voice.
+        # Cooldown fires BEFORE the command body, so interaction.response is
+        # still unsent — send_message works here (defer/followup hasn't happened).
+        @self.tree.error
+        async def _on_app_command_error(
+            interaction: discord.Interaction,
+            error: app_commands.AppCommandError,
+        ) -> None:
+            if isinstance(error, app_commands.CommandOnCooldown):
+                retry = max(1, int(error.retry_after))
+                msg = harry_error(f"Slow down, pal — try again in {retry}s.")
+            else:
+                # CommandInvokeError wraps the real exception in .original.
+                inner = getattr(error, "original", error)
+                log.exception("Unhandled app command error", exc_info=inner)
+                msg = harry_error(safe_exc_label(inner))
+
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
 
     async def setup_hook(self) -> None:
         from commands import setup

@@ -155,6 +155,28 @@ class TestClassifyGame:
     def test_missing_status(self) -> None:
         assert classify_game({}) == GameState.SCHEDULED
 
+    def test_scheduled_past_start_is_warmup(self) -> None:
+        """MLB detailedState often lags wall clock; past-start Scheduled → WARMUP."""
+        # Game was supposed to start at 11:00, now is 12:00 same day.
+        game = {"status": "Scheduled", "start_time": "2024-05-15T15:00:00+00:00"}
+        now = datetime(2024, 5, 15, 16, 0, tzinfo=UTC)
+        assert classify_game(game, now) == GameState.WARMUP
+
+    def test_scheduled_before_start_stays_scheduled(self) -> None:
+        game = {"status": "Scheduled", "start_time": "2024-05-15T23:00:00+00:00"}
+        now = datetime(2024, 5, 15, 20, 0, tzinfo=UTC)
+        assert classify_game(game, now) == GameState.SCHEDULED
+
+    def test_preview_past_start_is_warmup(self) -> None:
+        game = {"status": "Preview", "start_time": "2024-05-15T15:00:00+00:00"}
+        now = datetime(2024, 5, 15, 16, 0, tzinfo=UTC)
+        assert classify_game(game, now) == GameState.WARMUP
+
+    def test_malformed_start_time_falls_back_to_scheduled(self) -> None:
+        game = {"status": "Scheduled", "start_time": "not-a-date"}
+        now = datetime(2024, 5, 15, 16, 0, tzinfo=UTC)
+        assert classify_game(game, now) == GameState.SCHEDULED
+
 
 # ---------------------------------------------------------------------------
 # seconds_until_next_morning

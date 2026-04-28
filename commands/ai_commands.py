@@ -76,6 +76,7 @@ class AICommands(commands.Cog):
         name="junkstats",
         description="Get an absurdly specific and weird baseball fact from Harry Doyle.",
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def junkstats(self, interaction: discord.Interaction) -> None:
         if not self.client:
             await interaction.response.send_message(

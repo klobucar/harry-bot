@@ -131,8 +131,16 @@ def pick_active_game(games: list[dict]) -> dict | None:
     return games[-1]
 
 
-def classify_game(game: dict) -> GameState:
-    """Map an MLB detailedState string to a GameState bucket."""
+def classify_game(game: dict, now: datetime | None = None) -> GameState:
+    """Map an MLB detailedState string to a GameState bucket.
+
+    When `now` is provided, a game whose status is still "Scheduled" or
+    "Preview" but whose scheduled start has already passed is upgraded to
+    WARMUP. MLB's detailedState flips Scheduled → Warmup → Pre-Game → In
+    Progress on the broadcast's cue, which can lag the wall clock by a
+    few minutes — without this, the presence line keeps lying about first
+    pitch being in the past.
+    """
     status = game.get("status") or ""
     if any(s in status for s in WARMUP_STATES):
         return GameState.WARMUP
@@ -140,6 +148,15 @@ def classify_game(game: dict) -> GameState:
         return GameState.LIVE
     if any(s in status for s in FINAL_STATES):
         return GameState.POST_GAME
+    if now is not None:
+        start_str = game.get("start_time")
+        if start_str:
+            try:
+                start = datetime.fromisoformat(start_str)
+                if now >= start:
+                    return GameState.WARMUP
+            except ValueError, TypeError:
+                pass
     return GameState.SCHEDULED
 
 
@@ -299,7 +316,7 @@ class PresenceTask(commands.Cog):
             await self._go_idle()
             return seconds_until_next_morning(now)
 
-        state = classify_game(game)
+        state = classify_game(game, now)
 
         if state == GameState.LIVE:
             self._clear_linger()

@@ -47,6 +47,7 @@ class StatsCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def arsenal(
         self,
         interaction: discord.Interaction,
@@ -113,6 +114,7 @@ class StatsCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def stats(
         self,
         interaction: discord.Interaction,
@@ -174,6 +176,7 @@ class StatsCommands(commands.Cog):
         p2_first=make_first_name_autocomplete("p2_last"),
         p2_last=make_last_name_autocomplete("p2_first"),
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def compare(
         self,
         interaction: discord.Interaction,

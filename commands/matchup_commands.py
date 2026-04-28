@@ -89,6 +89,7 @@ class MatchupCommands(commands.Cog):
         batter_first=_batter_first_ac,
         batter_last=_batter_last_ac,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def matchup(
         self,
         interaction: discord.Interaction,
@@ -174,6 +175,7 @@ class MatchupCommands(commands.Cog):
         batter_first=_batter_first_ac,
         batter_last=_batter_last_ac,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def matchupzone(
         self,
         interaction: discord.Interaction,

@@ -64,3 +64,8 @@ $RECYCLE.BIN/
 # ── Logs & temp ───────────────────────────────────────────────────────────────
 *.log
 tmp/
+
+# ── Local debug artifacts ─────────────────────────────────────────────────────
+minimal.toml
+output.dot
+output.svg

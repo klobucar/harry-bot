@@ -223,6 +223,57 @@ class TestFetchFgLeaderboard:
         assert mock_get.call_args.kwargs["params"]["season"] == 2024
 
 
+class TestFetchFgLeaderboardRecorded:
+    """
+    Regression tests against real recorded FanGraphs responses.
+
+    vcrpy can't intercept curl_cffi (which speaks libcurl natively, bypassing
+    Python's requests stack), so these replay from JSON fixtures recorded by
+    hitting the live FG API. If FG changes column names or drops fields,
+    these tests will catch it before users do.
+
+    To refresh a fixture, re-run the one-shot recorder in tests/fixtures/README.md.
+    """
+
+    @staticmethod
+    def _load(name: str) -> dict:
+        import json
+        from pathlib import Path
+
+        path = Path(__file__).parent / "fixtures" / name
+        return json.loads(path.read_text())
+
+    def test_bat_fixture_parses_with_expected_columns(self) -> None:
+        payload = self._load("fg_leaderboard_bat_2024.json")
+        with patch("curl_cffi.requests.get", return_value=_FakeResp(payload)):
+            df = fetch_fg_leaderboard(2024, "bat")
+
+        # Shape: non-empty, core batter columns present
+        assert not df.empty
+        for col in ("Name", "Team", "HR", "AVG", "OPS", "WAR", "PA"):
+            assert col in df.columns, f"expected column {col} missing"
+
+        # HTML stripping worked on a real anchor tag
+        assert "<a " not in df.iloc[0]["Name"]
+        assert "<a " not in df.iloc[0]["Team"]
+
+        # Numeric columns are floats, not strings
+        assert df["HR"].dtype.kind == "f"
+        assert df["AVG"].dtype.kind == "f"
+
+    def test_pit_fixture_parses_with_expected_columns(self) -> None:
+        payload = self._load("fg_leaderboard_pit_2024.json")
+        with patch("curl_cffi.requests.get", return_value=_FakeResp(payload)):
+            df = fetch_fg_leaderboard(2024, "pit")
+
+        assert not df.empty
+        for col in ("Name", "Team", "ERA", "WAR", "IP", "WHIP"):
+            assert col in df.columns, f"expected column {col} missing"
+
+        assert "<a " not in df.iloc[0]["Name"]
+        assert df["ERA"].dtype.kind == "f"
+
+
 # ---------------------------------------------------------------------------
 # /schedule CoW regression (pybaseball 2.2.7 x pandas 2.x)
 # ---------------------------------------------------------------------------

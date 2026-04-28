@@ -54,6 +54,7 @@ class AdvancedCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def hotcold(
         self,
         interaction: discord.Interaction,
@@ -112,6 +113,7 @@ class AdvancedCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def exitvelo(
         self,
         interaction: discord.Interaction,
@@ -171,6 +173,7 @@ class AdvancedCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def percentile(
         self,
         interaction: discord.Interaction,
@@ -232,6 +235,7 @@ class AdvancedCommands(commands.Cog):
         first_name=first_name_autocomplete,
         last_name=last_name_autocomplete,
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def career(
         self,
         interaction: discord.Interaction,
@@ -317,6 +321,7 @@ class AdvancedCommands(commands.Cog):
             app_commands.Choice(name="Pitcher", value="pitcher"),
         ]
     )
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def leaderboard(
         self,
         interaction: discord.Interaction,
