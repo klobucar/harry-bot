@@ -155,7 +155,7 @@ def classify_game(game: dict, now: datetime | None = None) -> GameState:
                 start = datetime.fromisoformat(start_str)
                 if now >= start:
                     return GameState.WARMUP
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
     return GameState.SCHEDULED
 

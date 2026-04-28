@@ -63,7 +63,7 @@ class HarryBot(commands.Bot):
         # Global error handler: translate cooldown rejections into Harry's voice.
         # Cooldown fires BEFORE the command body, so interaction.response is
         # still unsent — send_message works here (defer/followup hasn't happened).
-        @self.tree.error  # ty: ignore
+        @self.tree.error
         async def _on_app_command_error(
             interaction: discord.Interaction,
             error: app_commands.AppCommandError,
