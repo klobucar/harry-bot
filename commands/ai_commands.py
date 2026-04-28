@@ -233,7 +233,10 @@ class AICommands(commands.Cog):
                 timeout=15.0,
             )
 
-            fact = response.text.strip()
+            text = response.text
+            if text is None:
+                raise RuntimeError("Gemini returned no text")
+            fact = text.strip()
             # Basic sanitization: strip quotes if Gemini adds them
             if (fact.startswith('"') and fact.endswith('"')) or (
                 fact.startswith("'") and fact.endswith("'")
