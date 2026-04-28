@@ -38,6 +38,7 @@ class MLBCommands(commands.Cog):
     # -----------------------------------------------------------------------
     @app_commands.command(name="roster", description="Show a team's current active 26-man roster.")
     @app_commands.describe(team=_TEAM_HINT)
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def roster(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
@@ -81,6 +82,7 @@ class MLBCommands(commands.Cog):
     # -----------------------------------------------------------------------
     @app_commands.command(name="injury", description="Show a team's current IL stints.")
     @app_commands.describe(team=_TEAM_HINT)
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def injury(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
@@ -114,6 +116,7 @@ class MLBCommands(commands.Cog):
     # -----------------------------------------------------------------------
     @app_commands.command(name="transactions", description="Show recent roster moves for a team.")
     @app_commands.describe(team=_TEAM_HINT, days="How many days back to look (default 7)")
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def transactions(
         self,
         interaction: discord.Interaction,
@@ -149,6 +152,7 @@ class MLBCommands(commands.Cog):
     # -----------------------------------------------------------------------
     @app_commands.command(name="livescore", description="Get today's live score for a team.")
     @app_commands.describe(team=_TEAM_HINT)
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def livescore(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
@@ -184,6 +188,7 @@ class MLBCommands(commands.Cog):
         name="nextgame", description="Show a team's next scheduled game and probable pitchers."
     )
     @app_commands.describe(team=_TEAM_HINT)
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
     async def nextgame(self, interaction: discord.Interaction, team: str) -> None:
         await interaction.response.defer(thinking=True)
         team_up = team.strip().upper()
