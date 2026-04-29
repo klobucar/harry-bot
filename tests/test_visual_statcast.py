@@ -7,6 +7,7 @@ Mocks pybaseball network calls and matplotlib figure creation.
 from __future__ import annotations
 
 import io
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -16,6 +17,11 @@ from matplotlib.figure import Figure as RealFigure
 import statcast_patch
 import statcast_plots  # noqa: F401  — registers module so patch("statcast_plots.X") works
 from fangraphs import fetch_year_fangraphs
+
+# Capture the real _init_pybaseball before the autouse fixture below replaces
+# it with a MagicMock. The UA-scope regression tests need to actually run the
+# real init to verify that requests.Session.request isn't patched globally.
+_REAL_INIT_PYBASEBALL = statcast_patch._init_pybaseball
 from statcast import (
     fetch_batter_zone,
     fetch_hitter_hotzones,
@@ -574,3 +580,97 @@ def test_fetch_matchup_zone_network_timeout_propagates() -> None:
         pytest.raises(TimeoutError, match="savant slow"),
     ):
         fetch_matchup_zone(999, 123456, 2024, "Pitcher", "Batter")
+
+
+# ---------------------------------------------------------------------------
+# UA-scope regression — make sure _init_pybaseball() doesn't bleed a
+# Session.request monkeypatch into the rest of the process anymore.
+# ---------------------------------------------------------------------------
+
+
+def _force_real_init() -> None:
+    """
+    Run the *real* _init_pybaseball (the autouse fixture replaces it with a
+    MagicMock). Reset the initialized flag so the body actually runs even
+    if a prior test already triggered it.
+    """
+    old_flag = statcast_patch._pybaseball_initialized
+    statcast_patch._pybaseball_initialized = False
+    try:
+        _REAL_INIT_PYBASEBALL()
+    finally:
+        statcast_patch._pybaseball_initialized = old_flag
+
+
+def test_init_pybaseball_does_not_patch_requests_session_globally() -> None:
+    """
+    Regression: the old implementation patched requests.Session.request
+    process-wide, which bled into discord.py / google-genai / curl_cffi
+    fallbacks. Verify the post-init Session.request is the unmodified one.
+    """
+    import requests
+
+    original_request = requests.Session.request
+    _force_real_init()
+
+    assert requests.Session.request is original_request, (
+        "statcast_patch._init_pybaseball() patched requests.Session.request "
+        "process-wide. It should patch only pybaseball's modules instead."
+    )
+
+
+def test_pybaseball_modules_get_ua_proxy_after_init() -> None:
+    """The scoped patch replaces the requests reference in pybaseball.* only."""
+    import sys
+
+    _force_real_init()
+
+    sb_mod = sys.modules["pybaseball.statcast_batter"]
+    assert type(sb_mod.requests).__name__ == "_UAInjectingRequests", (
+        f"Expected pybaseball.statcast_batter.requests to be the UA proxy, "
+        f"got {type(sb_mod.requests).__name__}"
+    )
+
+
+def test_ua_proxy_injects_browser_user_agent() -> None:
+    """The proxy injects the browser UA when no header is supplied."""
+    import sys
+
+    _force_real_init()
+
+    sb_mod = sys.modules["pybaseball.statcast_batter"]
+    captured: dict[str, Any] = {}
+
+    def fake_get(url: str, **kwargs: Any) -> Any:
+        captured["headers"] = kwargs.get("headers")
+        return MagicMock(content=b"", raise_for_status=lambda: None)
+
+    with patch.object(sb_mod.requests._real, "get", side_effect=fake_get):
+        sb_mod.requests.get("https://example.test/foo")
+
+    headers = captured["headers"]
+    assert isinstance(headers, dict)
+    assert "Chrome" in headers["User-Agent"], (
+        f"Proxy did not inject browser UA: {headers['User-Agent']!r}"
+    )
+
+
+def test_ua_proxy_preserves_caller_supplied_user_agent() -> None:
+    """If the caller passes a User-Agent, the proxy must not clobber it."""
+    import sys
+
+    _force_real_init()
+
+    sb_mod = sys.modules["pybaseball.statcast_batter"]
+    captured: dict[str, Any] = {}
+
+    def fake_get(url: str, **kwargs: Any) -> Any:
+        captured["headers"] = kwargs.get("headers")
+        return MagicMock(content=b"", raise_for_status=lambda: None)
+
+    with patch.object(sb_mod.requests._real, "get", side_effect=fake_get):
+        sb_mod.requests.get("https://example.test/foo", headers={"User-Agent": "MyBot/1.0"})
+
+    headers = captured["headers"]
+    assert isinstance(headers, dict)
+    assert headers["User-Agent"] == "MyBot/1.0"

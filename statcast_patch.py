@@ -5,8 +5,8 @@ Holds the sentinel references for every pybaseball function the bot uses,
 plus a single _init_pybaseball() entry point that:
   - rebinds pd.read_csv / pd.read_json to PyArrow-backed fast paths
   - fixes pybaseball 2.2.7's process_schedule under pandas 2.x CoW
-  - swaps requests.Session.request to inject a real-browser User-Agent
-    (some pybaseball endpoints 403 the default Python/Requests UA)
+  - injects a real-browser User-Agent header into pybaseball's HTTP calls
+    only — without touching `requests.Session.request` process-wide
 
 statcast_plots.py and statcast_stats.py read pybaseball functions via
 attribute access on this module (e.g. ``statcast_patch.statcast_batter``)
@@ -16,7 +16,7 @@ so tests can patch them at their source.
 from __future__ import annotations
 
 import os
-from functools import wraps
+import sys
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -108,6 +108,78 @@ def _patch_schedule_make_numeric() -> None:
     tr.make_numeric = cast("Any", _cow_safe_make_numeric)
 
 
+_BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+
+class _UAInjectingRequests:
+    """
+    Drop-in stand-in for the ``requests`` module that injects a browser
+    User-Agent header into ``get`` / ``post`` calls and ``Session.request``,
+    while transparently forwarding everything else (exceptions, RequestException,
+    etc.) to the real ``requests`` module.
+
+    Used to scope pybaseball's UA workaround to pybaseball's own modules
+    instead of patching ``requests.Session.request`` process-wide (which
+    used to bleed into discord.py, google-genai, etc.).
+    """
+
+    def __init__(self) -> None:
+        import requests
+
+        self._real = requests
+
+    def __getattr__(self, name: str) -> Any:
+        # Forward anything we don't override (exceptions, status codes, etc.)
+        return getattr(self._real, name)
+
+    def _inject_ua(self, kwargs: dict) -> dict:
+        headers = dict(kwargs.get("headers") or {})
+        headers.setdefault("User-Agent", _BROWSER_UA)
+        kwargs["headers"] = headers
+        return kwargs
+
+    def get(self, url: str, **kwargs: Any) -> Any:
+        return self._real.get(url, **self._inject_ua(kwargs))
+
+    def post(self, url: str, **kwargs: Any) -> Any:
+        return self._real.post(url, **self._inject_ua(kwargs))
+
+    def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        return self._real.request(method, url, **self._inject_ua(kwargs))
+
+    def Session(self) -> Any:  # noqa: N802 - mirrors requests.Session
+        s = self._real.Session()
+        s.headers.update({"User-Agent": _BROWSER_UA})
+        return s
+
+
+def _scope_pybaseball_user_agent() -> None:
+    """
+    Replace the ``requests`` reference inside every loaded pybaseball.*
+    submodule with our UA-injecting proxy.
+
+    Some pybaseball endpoints (Baseball Reference, etc.) 403 the default
+    Python/Requests User-Agent. The historical fix was to monkeypatch
+    ``requests.Session.request`` process-wide, which also affected
+    every other library in the process (discord.py's HTTP client,
+    google-genai, etc.). This narrows the patch to pybaseball only.
+
+    pybaseball's __init__.py eagerly imports every submodule, so by the
+    time _init_pybaseball() calls this, every relevant module is in
+    sys.modules and can be visited.
+    """
+    proxy = _UAInjectingRequests()
+    for mod_name, mod in list(sys.modules.items()):
+        if not mod_name.startswith("pybaseball"):
+            continue
+        if getattr(mod, "requests", None) is None:
+            continue
+        mod.requests = proxy  # ty: ignore[unresolved-attribute]
+
+
 # --- Lazy Loading Sentinels ---
 # Populated by _init_pybaseball() on first use.
 # Tests can mock these by assigning before _init_pybaseball() runs, or by
@@ -161,24 +233,7 @@ def _init_pybaseball() -> None:
     pybaseball.cache.config.cache_directory = str(cache_path)
     pybaseball.cache.enable()
 
-    # Some pybaseball endpoints (Baseball Reference, etc.) 403 on the default
-    # Python/Requests User-Agent. Monkeypatch requests.Session to always send a
-    # real browser UA. FanGraphs itself is no longer hit via pybaseball — see
-    # fetch_fg_leaderboard() which uses curl_cffi to pass Cloudflare.
-    import requests
-
-    _orig_request = requests.Session.request
-
-    @wraps(_orig_request)
-    def _mock_request(self, method, url, **kwargs):
-        kwargs.setdefault("headers", {})
-        kwargs["headers"]["User-Agent"] = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        return _orig_request(self, method, url, **kwargs)
-
-    requests.Session.request = cast("Any", _mock_request)
-
+    _scope_pybaseball_user_agent()
     _patch_schedule_make_numeric()
 
     # Export names to globals ONLY if they are not already set (e.g. by a mock)
@@ -219,6 +274,7 @@ __all__ = [
     "Figure",
     "_init_pybaseball",
     "_patch_schedule_make_numeric",
+    "_scope_pybaseball_user_agent",
     "fast_read_csv",
     "fast_read_json",
     "playerid_lookup",
