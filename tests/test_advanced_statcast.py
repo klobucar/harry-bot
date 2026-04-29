@@ -46,7 +46,7 @@ class TestFetchExitVelo:
 
     def test_returns_exit_velo_dict(self) -> None:
         df = self._make_evdf(player_id=111)
-        with patch("statcast.statcast_batter_exitvelo_barrels", return_value=df):
+        with patch("statcast_patch.statcast_batter_exitvelo_barrels", return_value=df):
             result = fetch_exit_velo(111, 2024, "Riley Greene")
         assert "Avg Exit Velo" in result
         assert "92.3" in str(result["Avg Exit Velo"])
@@ -54,14 +54,14 @@ class TestFetchExitVelo:
     def test_player_not_in_leaderboard_raises(self) -> None:
         df = self._make_evdf(player_id=999)
         with (
-            patch("statcast.statcast_batter_exitvelo_barrels", return_value=df),
+            patch("statcast_patch.statcast_batter_exitvelo_barrels", return_value=df),
             pytest.raises(ValueError, match="No exit velocity data"),
         ):
             fetch_exit_velo(111, 2024, "Riley Greene")
 
     def test_empty_df_raises(self) -> None:
         with (
-            patch("statcast.statcast_batter_exitvelo_barrels", return_value=pd.DataFrame()),
+            patch("statcast_patch.statcast_batter_exitvelo_barrels", return_value=pd.DataFrame()),
             pytest.raises(ValueError, match="No exit velocity data available"),
         ):
             fetch_exit_velo(111, 2024, "Riley Greene")
@@ -86,7 +86,7 @@ class TestFetchHotCold:
 
     def test_batter_returns_avg_obp_slg(self) -> None:
         df = self._make_statcast_df()
-        with patch("statcast.statcast_batter", return_value=df):
+        with patch("statcast_patch.statcast_batter", return_value=df):
             result = fetch_hot_cold(111, 14, "Riley Greene", player_type="batter")
         assert "AVG" in result
         assert "OBP" in result
@@ -94,14 +94,14 @@ class TestFetchHotCold:
 
     def test_pitcher_returns_pitch_counts(self) -> None:
         df = self._make_statcast_df()
-        with patch("statcast.statcast_pitcher", return_value=df):
+        with patch("statcast_patch.statcast_pitcher", return_value=df):
             result = fetch_hot_cold(111, 14, "Tarik Skubal", player_type="pitcher")
         assert "Pitches" in result
         assert "K" in result
 
     def test_empty_data_raises(self) -> None:
         with (
-            patch("statcast.statcast_batter", return_value=pd.DataFrame()),
+            patch("statcast_patch.statcast_batter", return_value=pd.DataFrame()),
             pytest.raises(ValueError, match="No Statcast data"),
         ):
             fetch_hot_cold(111, 14, "Riley Greene", player_type="batter")
@@ -127,7 +127,7 @@ class TestFetchPercentileRanks:
 
     def test_pitcher_percentiles_returned(self) -> None:
         df = self._make_rank_df("player_id", 111)
-        with patch("statcast.statcast_pitcher_percentile_ranks", return_value=df):
+        with patch("statcast_patch.statcast_pitcher_percentile_ranks", return_value=df):
             result = fetch_percentile_ranks(111, 2024, "Tarik Skubal", "pitcher")
         assert "K%" in result
         assert "95th percentile" in result["K%"]
@@ -135,14 +135,14 @@ class TestFetchPercentileRanks:
     def test_player_not_found_raises(self) -> None:
         df = self._make_rank_df("player_id", 999)
         with (
-            patch("statcast.statcast_pitcher_percentile_ranks", return_value=df),
+            patch("statcast_patch.statcast_pitcher_percentile_ranks", return_value=df),
             pytest.raises(ValueError, match="No percentile data found"),
         ):
             fetch_percentile_ranks(111, 2024, "Tarik Skubal", "pitcher")
 
     def test_empty_data_raises(self) -> None:
         with (
-            patch("statcast.statcast_pitcher_percentile_ranks", return_value=pd.DataFrame()),
+            patch("statcast_patch.statcast_pitcher_percentile_ranks", return_value=pd.DataFrame()),
             pytest.raises(ValueError, match="No percentile rank data"),
         ):
             fetch_percentile_ranks(111, 2024, "Tarik Skubal", "pitcher")
