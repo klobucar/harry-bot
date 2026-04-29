@@ -9,6 +9,7 @@ No Discord imports — pure data / plot logic, making this independently testabl
 
 from __future__ import annotations
 
+import gc
 import importlib.resources
 import logging
 import os
@@ -349,6 +350,11 @@ def plot_to_buffer(data: pd.DataFrame, title: str, colorby: str = "pitch_type") 
         del ax
         del fig
         del data
+        # Figure↔Axes is a reference cycle: plt.close frees matplotlib's
+        # C-side bitmap, but the Python objects only release on a cyclic
+        # GC pass. Without this, RSS climbs ~10 MiB per chart on a long-
+        # lived bot until gen-2 runs.
+        gc.collect()
 
     return buf
 
@@ -543,6 +549,7 @@ def fetch_hitter_hotzones(player_id: int, year: int, player_name: str) -> BytesI
         del ax
         del fig
         del data
+        gc.collect()
 
     return buf
 
@@ -817,6 +824,7 @@ def fetch_spray_chart(
         del ax
         del fig
         del in_play
+        gc.collect()
 
     return buf
 
@@ -872,6 +880,7 @@ def fetch_stadium_info(team_alias: str) -> dict:
         plt.close(fig)
         del ax
         del fig
+        gc.collect()
 
     return {
         "name": name,
