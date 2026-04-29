@@ -13,7 +13,8 @@ import pandas as pd
 import pytest
 from matplotlib.figure import Figure as RealFigure
 
-import statcast
+import statcast_patch
+import statcast_plots  # noqa: F401  — registers module so patch("statcast_plots.X") works
 from fangraphs import fetch_year_fangraphs
 from statcast import (
     fetch_batter_zone,
@@ -30,23 +31,24 @@ from statcast import (
 
 @pytest.fixture(autouse=True)
 def setup_statcast_globals():
-    """Ensure statcast globals are not None for patching, even if _init_pybaseball is skipped."""
-    # We set these on the module directly so they are available for both
-    # patching and for the code's own use (like isinstance checks).
-    old_fig = statcast.Figure
-    old_plotting = statcast.plotting
-    old_plt = statcast.plt
+    """
+    Set up patched matplotlib + plotting on statcast_patch so the helpers in
+    statcast_plots see them (they look up via statcast_patch.X attribute access).
+    """
+    old_fig = statcast_patch.Figure
+    old_plotting = statcast_patch.plotting
+    old_plt = statcast_patch.plt
 
-    statcast.Figure = RealFigure
-    statcast.plotting = MagicMock()
-    statcast.plt = MagicMock()
+    statcast_patch.Figure = RealFigure
+    statcast_patch.plotting = MagicMock()
+    statcast_patch.plt = MagicMock()
 
-    with patch("statcast._init_pybaseball"):
+    with patch("statcast_patch._init_pybaseball"):
         yield
 
-    statcast.Figure = old_fig
-    statcast.plotting = old_plotting
-    statcast.plt = old_plt
+    statcast_patch.Figure = old_fig
+    statcast_patch.plotting = old_plotting
+    statcast_patch.plt = old_plt
 
 
 @pytest.fixture
@@ -106,11 +108,8 @@ def test_fetch_hitter_hotzones_success(mock_statcast_df: pd.DataFrame) -> None:
 
     df = pd.DataFrame(rows)
 
-    # We use a real Figure but mock savefig.
-    # We DON'T patch statcast.Figure here because it's already set to RealFigure in the fixture.
-    # If we need to capture the savefig, we can patch the real Figure's method.
     with (
-        patch("statcast.statcast_batter", return_value=df),
+        patch("statcast_patch.statcast_batter", return_value=df),
         patch.object(RealFigure, "savefig"),
     ):
         result = fetch_hitter_hotzones(123456, 2024, "Test Player")
@@ -120,7 +119,7 @@ def test_fetch_hitter_hotzones_success(mock_statcast_df: pd.DataFrame) -> None:
 
 def test_fetch_hitter_hotzones_empty_raises() -> None:
     with (
-        patch("statcast.statcast_batter", return_value=pd.DataFrame()),
+        patch("statcast_patch.statcast_batter", return_value=pd.DataFrame()),
         pytest.raises(ValueError, match="No Statcast batter data"),
     ):
         fetch_hitter_hotzones(123456, 2024, "Test Player")
@@ -129,7 +128,7 @@ def test_fetch_hitter_hotzones_empty_raises() -> None:
 def test_fetch_hitter_hotzones_no_zone_data_raises() -> None:
     df = pd.DataFrame([{"zone": None, "events": "single"}])
     with (
-        patch("statcast.statcast_batter", return_value=df),
+        patch("statcast_patch.statcast_batter", return_value=df),
         pytest.raises(ValueError, match="No pitches recorded in the strike zone"),
     ):
         fetch_hitter_hotzones(123456, 2024, "Test Player")
@@ -143,8 +142,8 @@ def test_fetch_hitter_hotzones_no_zone_data_raises() -> None:
 def test_fetch_pitcher_zone(mock_statcast_df: pd.DataFrame) -> None:
     real_fig = RealFigure()
     with (
-        patch("statcast.statcast_pitcher", return_value=mock_statcast_df),
-        patch.object(statcast.plotting, "plot_strike_zone") as mock_plot,
+        patch("statcast_patch.statcast_pitcher", return_value=mock_statcast_df),
+        patch.object(statcast_patch.plotting, "plot_strike_zone") as mock_plot,
         patch.object(real_fig, "savefig"),
     ):
         mock_ax = MagicMock()
@@ -159,8 +158,8 @@ def test_fetch_pitcher_zone(mock_statcast_df: pd.DataFrame) -> None:
 def test_fetch_batter_zone(mock_statcast_df: pd.DataFrame) -> None:
     real_fig = RealFigure()
     with (
-        patch("statcast.statcast_batter", return_value=mock_statcast_df),
-        patch.object(statcast.plotting, "plot_strike_zone") as mock_plot,
+        patch("statcast_patch.statcast_batter", return_value=mock_statcast_df),
+        patch.object(statcast_patch.plotting, "plot_strike_zone") as mock_plot,
         patch.object(real_fig, "savefig"),
     ):
         mock_ax = MagicMock()
@@ -178,8 +177,8 @@ def test_fetch_matchup_zone(mock_statcast_df: pd.DataFrame) -> None:
     real_fig = RealFigure()
 
     with (
-        patch("statcast.statcast_batter", return_value=mock_statcast_df),
-        patch.object(statcast.plotting, "plot_strike_zone") as mock_plot,
+        patch("statcast_patch.statcast_batter", return_value=mock_statcast_df),
+        patch.object(statcast_patch.plotting, "plot_strike_zone") as mock_plot,
         patch.object(real_fig, "savefig"),
     ):
         mock_ax = MagicMock()
@@ -199,8 +198,8 @@ def test_fetch_matchup_zone(mock_statcast_df: pd.DataFrame) -> None:
 def test_fetch_spray_chart_success(mock_statcast_df: pd.DataFrame) -> None:
     real_fig = RealFigure()
     with (
-        patch("statcast.statcast_batter", return_value=mock_statcast_df),
-        patch.object(statcast.plotting, "spraychart") as mock_spray,
+        patch("statcast_patch.statcast_batter", return_value=mock_statcast_df),
+        patch.object(statcast_patch.plotting, "spraychart") as mock_spray,
         patch.object(real_fig, "savefig"),
     ):
         mock_ax = MagicMock()
@@ -235,7 +234,9 @@ def test_fetch_pitch_arsenal_returns_dict() -> None:
         ]
     )
 
-    with patch("statcast.statcast_pitcher_pitch_arsenal", side_effect=[df, spin_df, usage_df]):
+    with patch(
+        "statcast_patch.statcast_pitcher_pitch_arsenal", side_effect=[df, spin_df, usage_df]
+    ):
         result = fetch_pitch_arsenal(123456, 2024)
 
     assert len(result) == 2
@@ -245,7 +246,7 @@ def test_fetch_pitch_arsenal_returns_dict() -> None:
 
 def test_fetch_pitch_arsenal_empty_raises() -> None:
     with (
-        patch("statcast.statcast_pitcher_pitch_arsenal", return_value=pd.DataFrame()),
+        patch("statcast_patch.statcast_pitcher_pitch_arsenal", return_value=pd.DataFrame()),
         pytest.raises(ValueError, match="No arsenal data"),
     ):
         fetch_pitch_arsenal(123456, 2024)
@@ -265,7 +266,7 @@ def test_fetch_standings_success() -> None:
         ]
     )
 
-    with patch("statcast.standings", return_value=[df_al_central]):
+    with patch("statcast_patch.standings", return_value=[df_al_central]):
         result = fetch_standings(2024)
 
     assert isinstance(result, list)
@@ -275,7 +276,7 @@ def test_fetch_standings_success() -> None:
 
 def test_fetch_standings_empty_raises() -> None:
     with (
-        patch("statcast.standings", return_value=[]),
+        patch("statcast_patch.standings", return_value=[]),
         pytest.raises(ValueError, match="No standings data"),
     ):
         fetch_standings(2024)
@@ -304,7 +305,7 @@ def test_fetch_schedule_success() -> None:
         * 10
     )
 
-    with patch("statcast.schedule_and_record", return_value=df):
+    with patch("statcast_patch.schedule_and_record", return_value=df):
         result = fetch_schedule("DET", 2024)
 
     assert isinstance(result, tuple)
@@ -313,7 +314,7 @@ def test_fetch_schedule_success() -> None:
 
 def test_fetch_schedule_empty_raises() -> None:
     with (
-        patch("statcast.schedule_and_record", return_value=pd.DataFrame()),
+        patch("statcast_patch.schedule_and_record", return_value=pd.DataFrame()),
         pytest.raises(ValueError, match="No schedule data"),
     ):
         fetch_schedule("DET", 2024)
@@ -366,9 +367,9 @@ def test_fetch_stadium_info_success() -> None:
     )
 
     with (
-        patch("statcast._normalize_stadium", return_value="detroit_tigers"),
-        patch("statcast.pd.read_csv", return_value=mock_df),
-        patch.object(statcast.plotting, "plot_stadium") as mock_plot,
+        patch("statcast_plots._normalize_stadium", return_value="detroit_tigers"),
+        patch("statcast_plots.pd.read_csv", return_value=mock_df),
+        patch.object(statcast_patch.plotting, "plot_stadium") as mock_plot,
         patch.object(real_fig, "savefig"),
     ):
         mock_ax = MagicMock()
@@ -385,7 +386,191 @@ def test_fetch_stadium_info_success() -> None:
 
 def test_fetch_stadium_info_unknown_raises() -> None:
     with (
-        patch("statcast._normalize_stadium", return_value="generic"),
+        patch("statcast_plots._normalize_stadium", return_value="generic"),
         pytest.raises(ValueError, match="Unknown team/stadium"),
     ):
         fetch_stadium_info("wrong_team")
+
+
+# ---------------------------------------------------------------------------
+# Render-failure / timeout / edge paths for /spraychart, /hotzones,
+# /stadium, /matchupzone
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_spray_chart_no_inplay_events_raises(mock_statcast_df: pd.DataFrame) -> None:
+    """All rows are non-X (e.g. balls/strikes), so no batted-ball coords remain."""
+    df = mock_statcast_df.copy()
+    df["type"] = "B"  # non-in-play
+    with (
+        patch("statcast_patch.statcast_batter", return_value=df),
+        pytest.raises(ValueError, match="No batted-ball events with coordinates"),
+    ):
+        fetch_spray_chart(123456, 2024, "Test Player", "generic")
+
+
+def test_fetch_spray_chart_park_filter_empty_raises(mock_statcast_df: pd.DataFrame) -> None:
+    """Batter has data but never played at the requested stadium."""
+    df = mock_statcast_df.copy()
+    df["home_team"] = "NYY"  # batter only ever played at Yankee Stadium
+    with (
+        patch("statcast_patch.statcast_batter", return_value=df),
+        # Force the stadium to a known team (tigers → DET) so the home_team
+        # filter actually runs and finds zero rows.
+        patch("statcast_plots._normalize_stadium", return_value="tigers"),
+        pytest.raises(ValueError, match="They may not have played there"),
+    ):
+        fetch_spray_chart(123456, 2024, "Test Player", "tigers")
+
+
+def test_fetch_spray_chart_savefig_failure_still_closes_fig(
+    mock_statcast_df: pd.DataFrame,
+) -> None:
+    """If savefig blows up mid-render, plt.close must still run (no fig leak)."""
+    real_fig = RealFigure()
+    with (
+        patch("statcast_patch.statcast_batter", return_value=mock_statcast_df),
+        patch.object(statcast_patch.plotting, "spraychart") as mock_spray,
+        patch.object(real_fig, "savefig", side_effect=OSError("disk full")),
+    ):
+        mock_ax = MagicMock()
+        mock_ax.get_figure.return_value = real_fig
+        mock_spray.return_value = mock_ax
+
+        with pytest.raises(OSError, match="disk full"):
+            fetch_spray_chart(123456, 2024, "Test Player", "generic")
+
+    # plt is a MagicMock from the autouse fixture; verify the cleanup ran.
+    statcast_patch.plt.close.assert_called_with(real_fig)
+
+
+def test_fetch_spray_chart_plotting_raises_propagates(
+    mock_statcast_df: pd.DataFrame,
+) -> None:
+    """If pybaseball.spraychart itself raises (e.g. KeyError), surface it."""
+    with (
+        patch("statcast_patch.statcast_batter", return_value=mock_statcast_df),
+        patch.object(statcast_patch.plotting, "spraychart", side_effect=KeyError("missing column")),
+        pytest.raises(KeyError, match="missing column"),
+    ):
+        fetch_spray_chart(123456, 2024, "Test Player", "generic")
+
+
+def test_fetch_spray_chart_network_timeout_propagates() -> None:
+    """statcast_batter timing out (network) bubbles up — not swallowed."""
+    with (
+        patch("statcast_patch.statcast_batter", side_effect=TimeoutError("savant slow")),
+        pytest.raises(TimeoutError, match="savant slow"),
+    ):
+        fetch_spray_chart(123456, 2024, "Test Player", "generic")
+
+
+def test_fetch_hotzones_savefig_failure_still_closes_fig() -> None:
+    """If savefig fails mid-render, plt.close must still run."""
+    rows = []
+    for z in range(1, 10):
+        rows.append({"zone": float(z), "events": "single"})
+        rows.append({"zone": float(z), "events": "field_out"})
+    df = pd.DataFrame(rows)
+
+    with (
+        patch("statcast_patch.statcast_batter", return_value=df),
+        patch.object(RealFigure, "savefig", side_effect=OSError("disk full")),
+        pytest.raises(OSError, match="disk full"),
+    ):
+        fetch_hitter_hotzones(123456, 2024, "Test Player")
+
+    statcast_patch.plt.close.assert_called()
+
+
+def test_fetch_hotzones_network_timeout_propagates() -> None:
+    with (
+        patch("statcast_patch.statcast_batter", side_effect=TimeoutError("savant slow")),
+        pytest.raises(TimeoutError, match="savant slow"),
+    ):
+        fetch_hitter_hotzones(123456, 2024, "Test Player")
+
+
+def test_fetch_stadium_info_savefig_failure_still_closes_fig() -> None:
+    real_fig = RealFigure()
+    mock_df = pd.DataFrame([{"team": "tigers", "name": "Comerica Park", "location": "Detroit, MI"}])
+
+    with (
+        patch("statcast_plots._normalize_stadium", return_value="tigers"),
+        patch("statcast_plots.pd.read_csv", return_value=mock_df),
+        patch.object(statcast_patch.plotting, "plot_stadium") as mock_plot,
+        patch.object(real_fig, "savefig", side_effect=OSError("disk full")),
+    ):
+        mock_ax = MagicMock()
+        mock_ax.get_figure.return_value = real_fig
+        mock_plot.return_value = mock_ax
+
+        with pytest.raises(OSError, match="disk full"):
+            fetch_stadium_info("tigers")
+
+    statcast_patch.plt.close.assert_called_with(real_fig)
+
+
+def test_fetch_stadium_info_plot_stadium_raises_propagates() -> None:
+    """If pybaseball.plot_stadium errors, surface it (don't return a partial dict)."""
+    mock_df = pd.DataFrame([{"team": "tigers", "name": "Comerica Park", "location": "Detroit, MI"}])
+    with (
+        patch("statcast_plots._normalize_stadium", return_value="tigers"),
+        patch("statcast_plots.pd.read_csv", return_value=mock_df),
+        patch.object(
+            statcast_patch.plotting, "plot_stadium", side_effect=RuntimeError("matplotlib boom")
+        ),
+        pytest.raises(RuntimeError, match="matplotlib boom"),
+    ):
+        fetch_stadium_info("tigers")
+
+
+def test_fetch_matchup_zone_pitcher_never_faced_batter_raises(
+    mock_statcast_df: pd.DataFrame,
+) -> None:
+    """Batter has data, but none of it is from the queried pitcher."""
+    df = mock_statcast_df.copy()
+    df["pitcher"] = 111  # batter has data, but not against pitcher 999
+    with (
+        patch("statcast_patch.statcast_batter", return_value=df),
+        pytest.raises(ValueError, match="No pitches found from pitcher 999"),
+    ):
+        fetch_matchup_zone(999, 123456, 2024, "Pitcher", "Batter")
+
+
+def test_fetch_matchup_zone_empty_batter_data_raises() -> None:
+    with (
+        patch("statcast_patch.statcast_batter", return_value=pd.DataFrame()),
+        pytest.raises(ValueError, match="No Statcast data for batter_id"),
+    ):
+        fetch_matchup_zone(999, 123456, 2024, "Pitcher", "Batter")
+
+
+def test_fetch_matchup_zone_savefig_failure_still_closes_fig(
+    mock_statcast_df: pd.DataFrame,
+) -> None:
+    df = mock_statcast_df.copy()
+    df["pitcher"] = 999
+    real_fig = RealFigure()
+
+    with (
+        patch("statcast_patch.statcast_batter", return_value=df),
+        patch.object(statcast_patch.plotting, "plot_strike_zone") as mock_plot,
+        patch.object(real_fig, "savefig", side_effect=OSError("disk full")),
+    ):
+        mock_ax = MagicMock()
+        mock_ax.get_figure.return_value = real_fig
+        mock_plot.return_value = mock_ax
+
+        with pytest.raises(OSError, match="disk full"):
+            fetch_matchup_zone(999, 123456, 2024, "Pitcher", "Batter")
+
+    statcast_patch.plt.close.assert_called_with(real_fig)
+
+
+def test_fetch_matchup_zone_network_timeout_propagates() -> None:
+    with (
+        patch("statcast_patch.statcast_batter", side_effect=TimeoutError("savant slow")),
+        pytest.raises(TimeoutError, match="savant slow"),
+    ):
+        fetch_matchup_zone(999, 123456, 2024, "Pitcher", "Batter")
