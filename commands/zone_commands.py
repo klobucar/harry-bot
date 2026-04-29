@@ -67,17 +67,19 @@ class ZoneCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             buf: BytesIO = await asyncio.to_thread(fetch_pitcher_zone, player_id, year, player_name)
 
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /strikezone")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         file = discord.File(fp=buf, filename="strikezone.png")
@@ -130,17 +132,19 @@ class ZoneCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             buf: BytesIO = await asyncio.to_thread(fetch_batter_zone, player_id, year, player_name)
 
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /battedzone")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         file = discord.File(fp=buf, filename="battedzone.png")

@@ -48,11 +48,11 @@ class InfoCommands(commands.Cog):
         try:
             divisions: list[tuple[str, str]] = await asyncio.to_thread(fetch_standings, year)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /standings")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -93,11 +93,11 @@ class InfoCommands(commands.Cog):
         try:
             past, upcoming = await asyncio.to_thread(fetch_schedule, team_upper, year)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /schedule")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         embed = discord.Embed(
