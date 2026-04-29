@@ -72,7 +72,9 @@ class VisualCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             buf: BytesIO = await asyncio.to_thread(
@@ -80,11 +82,11 @@ class VisualCommands(commands.Cog):
             )
 
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /spraychart")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         file = discord.File(fp=buf, filename="spraychart.png")
@@ -137,7 +139,9 @@ class VisualCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             buf: BytesIO = await asyncio.to_thread(
@@ -145,11 +149,11 @@ class VisualCommands(commands.Cog):
             )
 
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /hotzones")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         file = discord.File(fp=buf, filename="hotzones.png")
@@ -183,11 +187,11 @@ class VisualCommands(commands.Cog):
         try:
             info = await asyncio.to_thread(fetch_stadium_info, team)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /stadium")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         file = discord.File(fp=info["image"], filename="stadium.png")

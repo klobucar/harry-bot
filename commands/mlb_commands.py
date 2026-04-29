@@ -47,11 +47,11 @@ class MLBCommands(commands.Cog):
         try:
             players: list[dict] = await asyncio.to_thread(fetch_roster, team_up)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/roster error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         # Group by position type
@@ -91,11 +91,11 @@ class MLBCommands(commands.Cog):
         try:
             players: list[dict] = await asyncio.to_thread(fetch_injuries, team_up)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/injury error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         if not players:
@@ -131,11 +131,11 @@ class MLBCommands(commands.Cog):
         try:
             moves: list[dict] = await asyncio.to_thread(fetch_transactions, team_up, days)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/transactions error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         lines = [f"{m['date']}  {m['desc']}" for m in moves[:15]]
@@ -161,11 +161,11 @@ class MLBCommands(commands.Cog):
         try:
             games: list[dict] = await asyncio.to_thread(fetch_live_scores, team_up)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/livescore error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -197,11 +197,11 @@ class MLBCommands(commands.Cog):
         try:
             game: dict = await asyncio.to_thread(fetch_next_game, team_up)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/nextgame error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         embed = discord.Embed(

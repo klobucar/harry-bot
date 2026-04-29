@@ -73,18 +73,20 @@ class AdvancedCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             stats: dict = await asyncio.to_thread(
                 fetch_hot_cold, player_id, days, player_name, player_type
             )
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/hotcold error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         emoji = "🔥" if player_type == "batter" else "⚾"
@@ -135,16 +137,18 @@ class AdvancedCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             stats: dict = await asyncio.to_thread(fetch_exit_velo, player_id, year, player_name)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/exitvelo error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -196,18 +200,20 @@ class AdvancedCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             ranks: dict = await asyncio.to_thread(
                 fetch_percentile_ranks, player_id, year, player_name, player_type
             )
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/percentile error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -276,7 +282,7 @@ class AdvancedCommands(commands.Cog):
             results = await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as exc:
             log.exception("/career gather error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         pitch_frames, bat_frames = [], []
@@ -292,7 +298,7 @@ class AdvancedCommands(commands.Cog):
                 pitch_frames, bat_frames, first_name.strip(), last_name.strip(), years
             )
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -341,11 +347,11 @@ class AdvancedCommands(commands.Cog):
                 fetch_leaderboard, stat.strip(), year, player_type
             )
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("/leaderboard error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         rows = "\n".join(
