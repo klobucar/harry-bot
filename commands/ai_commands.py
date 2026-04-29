@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 
 import discord
 from discord import app_commands
@@ -56,7 +57,10 @@ SYSTEM_INSTRUCTION = (
     "- NO ZERO STATS: Don't tell me what didn't happen. Tell me a weird total that DID happen.\n"
     "- ONE COMPLETE SENTENCE: Deadpan delivery. No preamble, no 'because', no explanation.\n"
     "- STOP IMMEDIATELY: Finish the sentence and shut up. Do not yap.\n"
-    "- FORMAT: **Player or Team Name** [Stat sentence]."
+    "- FORMAT: Bold the player or team name with markdown asterisks, then a "
+    "space, then the stat sentence. Example: **Cal Ripken Jr.** played in "
+    "exactly 2,632 consecutive games. Do NOT wrap the stat sentence in "
+    "brackets, parentheses, or quotation marks."
 )
 
 
@@ -275,6 +279,10 @@ class AICommands(commands.Cog):
                 fact.startswith("'") and fact.endswith("'")
             ):
                 fact = fact[1:-1]
+            # The format hint historically used "[Stat sentence]" as a
+            # placeholder, which Gemini occasionally echoes literally —
+            # unwrap any [bracketed] runs so the user doesn't see them.
+            fact = re.sub(r"\[([^\[\]]+)\]", r"\1", fact)
 
             await interaction.followup.send(f"> {fact}")
 
