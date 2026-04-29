@@ -60,11 +60,15 @@ class MatchupCommands(commands.Cog):
 
         if pitcher_id is None:
             await interaction.followup.send(
-                harry_error(f"No MLBAM ID for pitcher {pitcher_name!r}.")
+                harry_error(f"No MLBAM ID for pitcher {pitcher_name!r}."),
+                ephemeral=True,
             )
             return None
         if batter_id is None:
-            await interaction.followup.send(harry_error(f"No MLBAM ID for batter {batter_name!r}."))
+            await interaction.followup.send(
+                harry_error(f"No MLBAM ID for batter {batter_name!r}."),
+                ephemeral=True,
+            )
             return None
 
         return pitcher_id, batter_id
@@ -128,11 +132,11 @@ class MatchupCommands(commands.Cog):
             )
 
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /matchup")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         avg_display = f".{round(stats['batting_avg'] * 1000):03d}"
@@ -214,11 +218,11 @@ class MatchupCommands(commands.Cog):
             )
 
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /matchupzone")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         file = discord.File(fp=buf, filename="matchupzone.png")

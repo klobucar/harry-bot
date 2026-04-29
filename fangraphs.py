@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 import pandas as pd
 
@@ -25,6 +26,23 @@ _BATTING_KEYS = ["AVG", "OBP", "SLG", "OPS", "wOBA", "wRC+", "HR", "RBI", "SB", 
 
 _FG_API_URL = "https://www.fangraphs.com/api/leaders/major-league/data"
 _FG_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+# Retry transient failures (5xx + connection errors) before failing.
+# A 403 means Cloudflare has noticed our impersonation — no point retrying.
+_RETRY_ATTEMPTS = 3
+_RETRY_BASE_DELAY = 0.75
+
+_CF_BLOCKED_MSG = (
+    "FanGraphs is blocking the request right now (probably Cloudflare). Try again in a few minutes."
+)
+
+
+class FangraphsBlockedError(ValueError):
+    """Raised when FanGraphs returns 403 — Cloudflare is filtering us.
+
+    Subclasses ValueError so existing `except ValueError` paths in the
+    command layer surface the friendly message via str(exc).
+    """
 
 
 def _fmt(val: object) -> str:
@@ -72,7 +90,43 @@ def fetch_fg_leaderboard(year: int, kind: str, qual: int | str = 1) -> pd.DataFr
         "month": 0,
         "pageitems": 2000,
     }
-    resp = cc_requests.get(_FG_API_URL, params=params, impersonate="chrome", timeout=20)
+
+    resp = None
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            resp = cc_requests.get(_FG_API_URL, params=params, impersonate="chrome", timeout=20)
+        except Exception as exc:
+            # curl_cffi raises its own Request/ConnectionError types; treat
+            # any network-level failure as retryable.
+            if attempt < _RETRY_ATTEMPTS - 1:
+                log.warning(
+                    "FanGraphs %s (attempt %d/%d), retrying...",
+                    type(exc).__name__,
+                    attempt + 1,
+                    _RETRY_ATTEMPTS,
+                )
+                time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                continue
+            raise
+
+        # Status code may be missing on hand-rolled test fakes — default to 200.
+        status = getattr(resp, "status_code", 200)
+        if status == 403:
+            log.warning("FanGraphs returned 403 — likely Cloudflare gate.")
+            raise FangraphsBlockedError(_CF_BLOCKED_MSG)
+        if 500 <= status < 600 and attempt < _RETRY_ATTEMPTS - 1:
+            log.warning(
+                "FanGraphs returned %d (attempt %d/%d), retrying...",
+                status,
+                attempt + 1,
+                _RETRY_ATTEMPTS,
+            )
+            time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+            continue
+        break
+
+    if resp is None:
+        raise RuntimeError("unreachable")
     resp.raise_for_status()
     rows = resp.json().get("data") or []
     df = pd.DataFrame(rows)
@@ -186,6 +240,10 @@ def fetch_year_fangraphs(yr: int, player_type: str, first: str, last: str) -> pd
         res = res.copy()
         res["_year"] = yr
         return res
+    except FangraphsBlockedError:
+        # Don't swallow — the /career command should report CF block clearly,
+        # not show "no data found in 2002-2025" after silently failing every year.
+        raise
     except Exception as exc:
         log.exception("FanGraphs Error [%s %d]: %s", player_type, yr, exc)
         return None

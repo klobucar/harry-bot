@@ -67,17 +67,19 @@ class StatsCommands(commands.Cog):
                 resolve_player_id, first_name.strip(), last_name.strip()
             )
             if player_id is None:
-                await interaction.followup.send(harry_error(f"No MLBAM ID for {player_name!r}."))
+                await interaction.followup.send(
+                    harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
+                )
                 return
 
             pitches: list[dict] = await asyncio.to_thread(fetch_pitch_arsenal, player_id, year)
 
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /arsenal")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         # Format as a compact code-block table
@@ -134,11 +136,11 @@ class StatsCommands(commands.Cog):
                 fetch_player_stats, first_name.strip(), last_name.strip(), year
             )
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /stats")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         player_type = result["type"]  # "pitcher" or "batter"
@@ -200,11 +202,11 @@ class StatsCommands(commands.Cog):
             p2_task = asyncio.to_thread(fetch_player_stats, p2_first.strip(), p2_last.strip(), year)
             p1_result, p2_result = await asyncio.gather(p1_task, p2_task)
         except ValueError as exc:
-            await interaction.followup.send(harry_error(str(exc)))
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
         except Exception as exc:
             log.exception("Unexpected error in /compare")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         if p1_result["type"] != p2_result["type"]:
@@ -212,7 +214,8 @@ class StatsCommands(commands.Cog):
                 harry_error(
                     f"{p1_name} is a {p1_result['type']} and "
                     f"{p2_name} is a {p2_result['type']} — can't compare a pitcher to a batter."
-                )
+                ),
+                ephemeral=True,
             )
             return
 

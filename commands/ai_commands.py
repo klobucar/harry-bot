@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 
 import discord
 from discord import app_commands
@@ -56,8 +57,25 @@ SYSTEM_INSTRUCTION = (
     "- NO ZERO STATS: Don't tell me what didn't happen. Tell me a weird total that DID happen.\n"
     "- ONE COMPLETE SENTENCE: Deadpan delivery. No preamble, no 'because', no explanation.\n"
     "- STOP IMMEDIATELY: Finish the sentence and shut up. Do not yap.\n"
-    "- FORMAT: **Player or Team Name** [Stat sentence]."
+    "- FORMAT: Bold the player or team name with markdown asterisks, then a "
+    "space, then the stat sentence. Example: **Cal Ripken Jr.** played in "
+    "exactly 2,632 consecutive games. Do NOT wrap the stat sentence in "
+    "brackets, parentheses, or quotation marks."
 )
+
+
+def _parse_allowlist(raw: str | None) -> frozenset[int]:
+    """Parse JUNKSTATS_ALLOWLIST: comma-separated guild IDs. Empty = no limit."""
+    if not raw:
+        return frozenset()
+    out: set[int] = set()
+    for raw_part in raw.split(","):
+        part = raw_part.strip()
+        if part.isdigit():
+            out.add(int(part))
+        elif part:
+            log.warning("Ignoring invalid JUNKSTATS_ALLOWLIST entry: %r", part)
+    return frozenset(out)
 
 
 class AICommands(commands.Cog):
@@ -71,6 +89,9 @@ class AICommands(commands.Cog):
             self.client = None
         else:
             self.client = genai.Client(api_key=api_key)
+        self.allowlist = _parse_allowlist(os.environ.get("JUNKSTATS_ALLOWLIST"))
+        if self.allowlist:
+            log.info("/junkstats restricted to %d guild(s)", len(self.allowlist))
 
     @app_commands.command(
         name="junkstats",
@@ -81,6 +102,13 @@ class AICommands(commands.Cog):
         if not self.client:
             await interaction.response.send_message(
                 harry_error("Gemini API key is missing. Tell the owner to stop being so cheap!"),
+                ephemeral=True,
+            )
+            return
+
+        if self.allowlist and (interaction.guild_id not in self.allowlist):
+            await interaction.response.send_message(
+                harry_error("This one's not on the menu in your park, pal."),
                 ephemeral=True,
             )
             return
@@ -233,6 +261,15 @@ class AICommands(commands.Cog):
                 timeout=15.0,
             )
 
+            usage = getattr(response, "usage_metadata", None)
+            if usage is not None:
+                log.info(
+                    "/junkstats tokens: prompt=%s completion=%s total=%s",
+                    getattr(usage, "prompt_token_count", "?"),
+                    getattr(usage, "candidates_token_count", "?"),
+                    getattr(usage, "total_token_count", "?"),
+                )
+
             text = response.text
             if text is None:
                 raise RuntimeError("Gemini returned no text")
@@ -242,17 +279,22 @@ class AICommands(commands.Cog):
                 fact.startswith("'") and fact.endswith("'")
             ):
                 fact = fact[1:-1]
+            # The format hint historically used "[Stat sentence]" as a
+            # placeholder, which Gemini occasionally echoes literally —
+            # unwrap any [bracketed] runs so the user doesn't see them.
+            fact = re.sub(r"\[([^\[\]]+)\]", r"\1", fact)
 
             await interaction.followup.send(f"> {fact}")
 
         except TimeoutError:
             log.warning("/junkstats timed out (15s)")
             await interaction.followup.send(
-                harry_error("The AI is juust a bit unresponsive. Maybe it's checking the bullpen.")
+                harry_error("The AI is juust a bit unresponsive. Maybe it's checking the bullpen."),
+                ephemeral=True,
             )
         except Exception as exc:
             log.exception("/junkstats error")
-            await interaction.followup.send(harry_error(safe_exc_label(exc)))
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

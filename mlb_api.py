@@ -14,11 +14,21 @@ asyncio.to_thread() as blocking code, requests is the right tool.
 
 from __future__ import annotations
 
+import logging
+import time
 from datetime import date, timedelta
 
 import requests
 
 BASE = "https://statsapi.mlb.com/api/v1"
+
+_log = logging.getLogger("harry")
+
+# Retry transient failures (5xx + connection errors) twice with exponential
+# backoff before giving up. statsapi.mlb.com is usually rock-solid, but a
+# single 503 during a roster refresh shouldn't fail the user-facing command.
+_RETRY_ATTEMPTS = 3
+_RETRY_BASE_DELAY = 0.5
 
 # Mapping of common team abbreviations → MLB Stats API team IDs
 TEAM_IDS: dict[str, int] = {
@@ -79,11 +89,43 @@ POS_NAMES: dict[str, str] = {
 
 
 def _get(path: str, params: dict | None = None) -> dict:
-    """Fetch a MLB Stats API endpoint and return parsed JSON."""
+    """Fetch a MLB Stats API endpoint and return parsed JSON.
+
+    Retries up to _RETRY_ATTEMPTS times on connection errors, timeouts,
+    or 5xx responses with exponential backoff. 4xx errors are not retried.
+    """
     url = f"{BASE}{path}"
-    resp = requests.get(url, params=params, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            resp = requests.get(url, params=params, timeout=10)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.HTTPError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status is not None and 500 <= status < 600 and attempt < _RETRY_ATTEMPTS - 1:
+                _log.warning(
+                    "MLB API %s returned %d (attempt %d/%d), retrying...",
+                    path,
+                    status,
+                    attempt + 1,
+                    _RETRY_ATTEMPTS,
+                )
+                time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                continue
+            raise
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            if attempt < _RETRY_ATTEMPTS - 1:
+                _log.warning(
+                    "MLB API %s %s (attempt %d/%d), retrying...",
+                    path,
+                    type(exc).__name__,
+                    attempt + 1,
+                    _RETRY_ATTEMPTS,
+                )
+                time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                continue
+            raise
+    raise RuntimeError("unreachable")
 
 
 def _team_id(abbrev: str) -> int:
