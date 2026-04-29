@@ -49,31 +49,31 @@ class TestSeasonRange:
 
 class TestResolvePlayerId:
     def test_returns_none_for_empty_result(self) -> None:
-        with patch("statcast.playerid_lookup", return_value=pd.DataFrame()):
+        with patch("statcast_patch.playerid_lookup", return_value=pd.DataFrame()):
             result = resolve_player_id("nolan", "ryan")
         assert result is None
 
     def test_returns_none_when_no_mlbam_column(self) -> None:
         df = pd.DataFrame({"key_mlbam": [None, None]})
-        with patch("statcast.playerid_lookup", return_value=df):
+        with patch("statcast_patch.playerid_lookup", return_value=df):
             result = resolve_player_id("nolan", "ryan")
         assert result is None
 
     def test_returns_correct_id(self) -> None:
         df = pd.DataFrame({"key_mlbam": [121250]})
-        with patch("statcast.playerid_lookup", return_value=df):
+        with patch("statcast_patch.playerid_lookup", return_value=df):
             result = resolve_player_id("nolan", "ryan")
         assert result == 121250
 
     def test_returns_first_match_on_multiple_rows(self) -> None:
         df = pd.DataFrame({"key_mlbam": [111, 222, 333]})
-        with patch("statcast.playerid_lookup", return_value=df):
+        with patch("statcast_patch.playerid_lookup", return_value=df):
             result = resolve_player_id("pedro", "martinez")
         assert result == 111
 
     def test_passes_args_in_correct_order(self) -> None:
         """playerid_lookup expects (last, first, fuzzy=True) — verify the call."""
-        with patch("statcast.playerid_lookup", return_value=pd.DataFrame()) as mock_lookup:
+        with patch("statcast_patch.playerid_lookup", return_value=pd.DataFrame()) as mock_lookup:
             resolve_player_id("nolan", "ryan")
         mock_lookup.assert_called_once_with("ryan", "nolan", fuzzy=True)
 
@@ -114,7 +114,7 @@ def _make_matchup_df(events: list[str], pitcher_id: int = 99) -> pd.DataFrame:
 class TestComputeMatchupStats:
     def test_raises_on_empty_batter_data(self) -> None:
         with (
-            patch("statcast.statcast_batter", return_value=pd.DataFrame()),
+            patch("statcast_patch.statcast_batter", return_value=pd.DataFrame()),
             pytest.raises(ValueError, match="No Statcast data"),
         ):
             compute_matchup_stats(pitcher_id=99, batter_id=1, year=2023)
@@ -122,7 +122,7 @@ class TestComputeMatchupStats:
     def test_raises_when_pitcher_never_faced_batter(self) -> None:
         df = _make_matchup_df(["single"], pitcher_id=1)
         with (
-            patch("statcast.statcast_batter", return_value=df),
+            patch("statcast_patch.statcast_batter", return_value=df),
             pytest.raises(ValueError, match="No plate appearances"),
         ):
             compute_matchup_stats(pitcher_id=99, batter_id=1, year=2023)
@@ -130,13 +130,13 @@ class TestComputeMatchupStats:
     def test_batting_average_calculation(self) -> None:
         # 1 single + 1 strikeout = 0.500 AVG
         df = _make_matchup_df(["single", "strikeout"])
-        with patch("statcast.statcast_batter", return_value=df):
+        with patch("statcast_patch.statcast_batter", return_value=df):
             stats = compute_matchup_stats(pitcher_id=99, batter_id=1, year=2023)
         assert stats["batting_avg"] == pytest.approx(0.5)
 
     def test_zero_avg_on_all_strikeouts(self) -> None:
         df = _make_matchup_df(["strikeout", "strikeout", "strikeout"])
-        with patch("statcast.statcast_batter", return_value=df):
+        with patch("statcast_patch.statcast_batter", return_value=df):
             stats = compute_matchup_stats(pitcher_id=99, batter_id=1, year=2023)
         assert stats["batting_avg"] == 0.0
         assert stats["strikeouts"] == 3
@@ -144,7 +144,7 @@ class TestComputeMatchupStats:
     def test_pa_vs_ab_difference(self) -> None:
         # walks are PA but not AB; single is both
         df = _make_matchup_df(["walk", "single"])
-        with patch("statcast.statcast_batter", return_value=df):
+        with patch("statcast_patch.statcast_batter", return_value=df):
             stats = compute_matchup_stats(pitcher_id=99, batter_id=1, year=2023)
         assert stats["pa"] == 2
         assert stats["ab"] == 1  # walk excluded
@@ -152,7 +152,7 @@ class TestComputeMatchupStats:
 
     def test_hit_count(self) -> None:
         df = _make_matchup_df(["single", "double", "triple", "home_run", "strikeout"])
-        with patch("statcast.statcast_batter", return_value=df):
+        with patch("statcast_patch.statcast_batter", return_value=df):
             stats = compute_matchup_stats(pitcher_id=99, batter_id=1, year=2023)
         assert stats["hits"] == 4
 
@@ -284,7 +284,7 @@ class TestScheduleUnknownAttendanceRegression:
     Regression for the /schedule bug where pybaseball's process_schedule does
     an inplace replace that silently no-ops under pandas 2.x Copy-on-Write,
     leaving 'Unknown' strings in Attendance and making make_numeric's
-    astype(float) raise. statcast._patch_schedule_make_numeric replaces
+    astype(float) raise. statcast_patch._patch_schedule_make_numeric replaces
     make_numeric with a CoW-safe version; this test verifies it handles the
     shape of data pybaseball actually hands it.
     """
@@ -292,9 +292,9 @@ class TestScheduleUnknownAttendanceRegression:
     def test_unknown_attendance_becomes_nan_and_astype_float_succeeds(self) -> None:
         import numpy as np
 
-        import statcast
+        import statcast_patch
 
-        statcast._init_pybaseball()  # applies the patch
+        statcast_patch._init_pybaseball()  # applies the patch
 
         import pybaseball.team_results as tr
 
@@ -318,9 +318,9 @@ class TestScheduleUnknownAttendanceRegression:
 
     def test_all_na_attendance_column_still_casts(self) -> None:
         """If Attendance is entirely empty, make_numeric should fill with NaN."""
-        import statcast
+        import statcast_patch
 
-        statcast._init_pybaseball()
+        statcast_patch._init_pybaseball()
 
         import pybaseball.team_results as tr
 
