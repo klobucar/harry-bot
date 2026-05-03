@@ -174,20 +174,37 @@ def fetch_injuries(team: str) -> list[dict]:
     """
     Fetch players currently on the IL for a team.
 
-    Returns list of dicts: name, position, injury, date.
+    Returns list of dicts: name, pos, note (e.g. "15-Day IL — Left hip inflammation.").
     """
     tid = _team_id(team)
-    data = _get(f"/teams/{tid}/roster", {"rosterType": "injuries"})
+    # The legacy rosterType=injuries endpoint stopped filtering and now returns
+    # the active roster, so query the 40-man and filter on IL status codes
+    # (D7/D10/D15/D60). Status descriptions look like "Injured 15-Day".
+    data = _get(f"/teams/{tid}/roster", {"rosterType": "40Man"})
     roster = data.get("roster", [])
 
-    return [
-        {
-            "name": p.get("person", {}).get("fullName", "Unknown"),
-            "pos": p.get("position", {}).get("abbreviation", "?"),
-            "note": p.get("note", "") or "—",
-        }
-        for p in roster
-    ]
+    out: list[dict] = []
+    for p in roster:
+        status = p.get("status", {}) or {}
+        code = status.get("code", "")
+        if not code.startswith("D"):
+            continue
+        stint = status.get("description", "").replace("Injured ", "").strip()
+        injury = (p.get("note") or "").strip()
+        if stint and injury:
+            note = f"{stint} IL — {injury}"
+        elif stint:
+            note = f"{stint} IL"
+        else:
+            note = injury or "—"
+        out.append(
+            {
+                "name": p.get("person", {}).get("fullName", "Unknown"),
+                "pos": p.get("position", {}).get("abbreviation", "?"),
+                "note": note,
+            }
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------

@@ -5,14 +5,16 @@ interactions:
       Host:
       - statsapi.mlb.com
     method: GET
-    uri: https://statsapi.mlb.com/api/v1/teams/116/roster?rosterType=injuries
+    uri: https://statsapi.mlb.com/api/v1/teams/116/roster?rosterType=40Man
   response:
     body:
       string: >
-        {"copyright":"Copyright 2025 MLB Advanced Media, L.P.","roster":[
-          {"person":{"id":679529,"fullName":"Spencer Torkelson","link":"/api/v1/people/679529"},"jerseyNumber":"20","position":{"code":"3","name":"First Base","type":"Infielder","abbreviation":"1B"},"status":{"code":"IL10","description":"10-Day Injured List"},"parentTeamId":116,"note":"Right hand inflammation"},
-          {"person":{"id":669456,"fullName":"Matt Vierling","link":"/api/v1/people/669456"},"jerseyNumber":"8","position":{"code":"8","name":"Center Field","type":"Outfielder","abbreviation":"CF"},"status":{"code":"IL60","description":"60-Day Injured List"},"parentTeamId":116,"note":"Left shoulder surgery (rehab)"}
-        ],"teamId":116,"rosterType":"injuries","link":"/api/v1/teams/116/roster?rosterType=injuries"}
+        {"copyright":"Copyright 2026 MLB Advanced Media, L.P.","roster":[
+          {"person":{"id":663465,"fullName":"Tarik Skubal","link":"/api/v1/people/663465"},"jerseyNumber":"29","position":{"code":"1","name":"Pitcher","type":"Pitcher","abbreviation":"P"},"status":{"code":"A","description":"Active"},"parentTeamId":116},
+          {"person":{"id":434378,"fullName":"Justin Verlander","link":"/api/v1/people/434378"},"jerseyNumber":"35","position":{"code":"1","name":"Pitcher","type":"Pitcher","abbreviation":"P"},"status":{"code":"D15","description":"Injured 15-Day"},"parentTeamId":116,"note":"Left hip inflammation."},
+          {"person":{"id":679529,"fullName":"Spencer Torkelson","link":"/api/v1/people/679529"},"jerseyNumber":"20","position":{"code":"3","name":"First Base","type":"Infielder","abbreviation":"1B"},"status":{"code":"A","description":"Active"},"parentTeamId":116},
+          {"person":{"id":669456,"fullName":"Matt Vierling","link":"/api/v1/people/669456"},"jerseyNumber":"8","position":{"code":"8","name":"Center Field","type":"Outfielder","abbreviation":"CF"},"status":{"code":"D60","description":"Injured 60-Day"},"parentTeamId":116,"note":"Left shoulder surgery (rehab)"}
+        ],"teamId":116,"rosterType":"40Man","link":"/api/v1/teams/116/roster?rosterType=40Man"}
     headers:
       Content-Type:
       - application/json;charset=UTF-8
