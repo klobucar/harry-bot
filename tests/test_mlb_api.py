@@ -109,19 +109,42 @@ class TestFetchInjuries:
     _PAYLOAD: ClassVar[dict] = {
         "roster": [
             {
-                "person": {"fullName": "Spencer Torkelson"},
-                "position": {"abbreviation": "1B"},
-                "note": "Right hand (10-day)",
+                "person": {"fullName": "Justin Verlander"},
+                "position": {"abbreviation": "P"},
+                "status": {"code": "D15", "description": "Injured 15-Day"},
+                "note": "Left hip inflammation.",
+            },
+            {
+                "person": {"fullName": "Tarik Skubal"},
+                "position": {"abbreviation": "P"},
+                "status": {"code": "A", "description": "Active"},
+                "note": "",
+            },
+            {
+                "person": {"fullName": "Troy Melton"},
+                "position": {"abbreviation": "P"},
+                "status": {"code": "D60", "description": "Injured 60-Day"},
+                "note": "",
             },
         ]
     }
 
-    def test_returns_il_players(self) -> None:
+    def test_returns_only_il_players(self) -> None:
         with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
             result = fetch_injuries("DET")
-        assert len(result) == 1
-        assert result[0]["name"] == "Spencer Torkelson"
-        assert "hand" in result[0]["note"]
+        names = [p["name"] for p in result]
+        assert "Justin Verlander" in names
+        assert "Troy Melton" in names
+        assert "Tarik Skubal" not in names
+
+    def test_note_includes_il_stint(self) -> None:
+        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
+            result = fetch_injuries("DET")
+        verlander = next(p for p in result if p["name"] == "Justin Verlander")
+        assert "15-Day IL" in verlander["note"]
+        assert "hip" in verlander["note"]
+        melton = next(p for p in result if p["name"] == "Troy Melton")
+        assert melton["note"] == "60-Day IL"
 
     def test_empty_il_returns_empty_list(self) -> None:
         with patch("mlb_api.requests.get", return_value=_mock_get({"roster": []})):
