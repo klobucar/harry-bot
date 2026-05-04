@@ -1,5 +1,13 @@
 # Harry 🎙️
 
+[![CI](https://github.com/klobucar/harry-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/klobucar/harry-bot/actions/workflows/ci.yml)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with ty](https://img.shields.io/badge/types-ty-261230.svg)](https://github.com/astral-sh/ty)
+[![Last commit](https://img.shields.io/github/last-commit/klobucar/harry-bot)](https://github.com/klobucar/harry-bot/commits/main)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 A Discord bot named after **Harry Doyle**, the sardonic, bourbon-fueled announcer from *Major League* (voiced by Bob Uecker). Harry delivers real MLB Statcast data with the same dry pessimism he used to narrate the Indians' improbable season.
 
 ## Commands
