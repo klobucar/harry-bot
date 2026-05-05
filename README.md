@@ -50,6 +50,7 @@ A Discord bot named after **Harry Doyle**, the sardonic, bourbon-fueled announce
 | `/roster [team]` | Show a team's current active 26-man roster |
 | `/injury [team]` | Show a team's current IL (Injured List) stints |
 | `/transactions [team]` | Show recent roster moves for a team |
+| `/hope [team]` | Show a team's playoff odds (HOPE %) — based on FanGraphs odds |
 
 ## Quick Start
 

@@ -12,6 +12,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from persona import harry_error, safe_exc_label
+from playoff_hope import fetch_team_hope, hex_to_rgb, render_last_n_strip
 from statcast import fetch_schedule, fetch_standings
 from utils import current_season
 
@@ -112,3 +113,71 @@ class InfoCommands(commands.Cog):
 
         await interaction.followup.send(embed=embed)
         log.info("/schedule completed: %s %d", team_upper, year)
+
+    # -----------------------------------------------------------------------
+    # /hope
+    # -----------------------------------------------------------------------
+    @app_commands.command(
+        name="hope",
+        description="Show a team's playoff odds — pulled live from FanGraphs.",
+    )
+    @app_commands.describe(team=f"Team abbreviation or name — {TEAM_ABBREVS}")
+    @app_commands.checks.cooldown(3, 30.0, key=lambda i: i.user.id)
+    async def hope(self, interaction: discord.Interaction, team: str) -> None:
+        await interaction.response.defer(thinking=True)
+        log.info("/hope called: %s", team)
+
+        try:
+            data = await asyncio.to_thread(fetch_team_hope, team)
+        except ValueError as exc:
+            await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
+            return
+        except Exception as exc:
+            log.exception("Unexpected error in /hope")
+            await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
+            return
+
+        playoff_pct = data["playoff_pct"]
+        # 25% threshold — matches mlbplayoffhope.com's HOPE/NOPE convention.
+        label = "HOPE" if playoff_pct >= 25 else "NOPE"
+        title = f"🌅 {data['name']} — {label} {playoff_pct:.1f}%"
+
+        gb = data["gb"]
+        gb_str = "—" if gb == 0 else (f"+{abs(gb):g}" if gb < 0 else f"-{gb:g}")
+        record_line = (
+            f"**Record:** {data['wins']}-{data['losses']} ({data['win_pct']:.3f})  •  "
+            f"**GB:** {gb_str}"
+        )
+        proj_line = (
+            f"**Projected:** {data['proj_w']:.1f}-{data['proj_l']:.1f}  •  "
+            f"**Rest-of-season:** {data['ros_pct']:.1f}%"
+        )
+
+        embed = discord.Embed(
+            title=title,
+            description=f"{record_line}\n{proj_line}",
+            color=discord.Color.from_rgb(*hex_to_rgb(data["primary_color"])),
+        )
+        last_strip = render_last_n_strip(data.get("last_results") or [])
+        if last_strip:
+            embed.add_field(
+                name=f"Last {len(data['last_results'])}  (🟩 home W · 🟥 home L · 🟢 away W · 🔴 away L)",
+                value=last_strip,
+                inline=False,
+            )
+        embed.add_field(name="Make Playoffs", value=f"{data['playoff_pct']:.1f}%", inline=True)
+        embed.add_field(name="Win Division", value=f"{data['division_pct']:.1f}%", inline=True)
+        embed.add_field(name="Win Wild Card", value=f"{data['wildcard_pct']:.1f}%", inline=True)
+        embed.add_field(name="Win World Series", value=f"{data['ws_pct']:.2f}%", inline=True)
+        embed.add_field(
+            name="Further material",
+            value=f"[mlbplayoffhope.com — {data['name']}]({data['url']})",
+            inline=False,
+        )
+        footer = "Data: FanGraphs playoff odds"
+        if data.get("last_updated"):
+            footer = f"{footer} • Fetched {data['last_updated']}"
+        embed.set_footer(text=footer)
+
+        await interaction.followup.send(embed=embed)
+        log.info("/hope completed: %s (%.2f%%)", data["abbr"], playoff_pct)
