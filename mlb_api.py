@@ -348,6 +348,72 @@ def fetch_next_game(team: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Recent results (last N completed games)
+# ---------------------------------------------------------------------------
+
+
+def fetch_recent_results(team: str, n: int = 10, lookback_days: int = 30) -> list[dict]:
+    """
+    Return the team's last `n` completed regular-season games, oldest → newest.
+
+    Each entry: {date, is_home, result ("W"|"L"|"P"), opponent, score}.
+    `result == "P"` covers postponed/suspended games (kept so callers can render
+    them as a neutral marker). `lookback_days` bounds the schedule window —
+    30 days is plenty to cover an off-day-heavy stretch.
+    """
+    tid = _team_id(team)
+    today = date.today()
+    start = today - timedelta(days=lookback_days)
+    data = _get(
+        "/schedule",
+        {
+            "sportId": 1,
+            "teamId": tid,
+            "gameType": "R",
+            "startDate": start.strftime("%Y-%m-%d"),
+            "endDate": today.strftime("%Y-%m-%d"),
+        },
+    )
+
+    out: list[dict] = []
+    for day in data.get("dates", []):
+        for game in day.get("games", []):
+            status = (game.get("status") or {}).get("abstractGameState", "")
+            detailed = (game.get("status") or {}).get("detailedState", "")
+            home = (game.get("teams") or {}).get("home") or {}
+            away = (game.get("teams") or {}).get("away") or {}
+            home_id = (home.get("team") or {}).get("id")
+            is_home = home_id == tid
+            our = home if is_home else away
+            opp = away if is_home else home
+
+            if status == "Final":
+                won = bool(our.get("isWinner"))
+                result = "W" if won else "L"
+                score = f"{our.get('score', 0)}-{opp.get('score', 0)}"
+            elif "Postponed" in detailed or "Suspended" in detailed:
+                result = "P"
+                score = ""
+            else:
+                # Live, scheduled, or rescheduled — skip; we want completed only.
+                continue
+
+            out.append(
+                {
+                    "date": day.get("date", ""),
+                    "is_home": is_home,
+                    "result": result,
+                    "opponent": (opp.get("team") or {}).get("abbreviation")
+                    or (opp.get("team") or {}).get("name", "?"),
+                    "score": score,
+                }
+            )
+
+    out.sort(key=lambda g: g["date"])
+    return out[-n:]
+
+
+# ---------------------------------------------------------------------------
 # Player roster (for autocomplete)
 # ---------------------------------------------------------------------------
 
