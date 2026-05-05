@@ -16,6 +16,7 @@ from mlb_api import (
     fetch_injuries,
     fetch_live_scores,
     fetch_next_game,
+    fetch_recent_results,
     fetch_roster,
     fetch_transactions,
 )
@@ -268,3 +269,104 @@ class TestFetchNextGame:
             pytest.raises(ValueError, match="No upcoming games"),
         ):
             fetch_next_game("DET")
+
+
+# ---------------------------------------------------------------------------
+# fetch_recent_results
+# ---------------------------------------------------------------------------
+
+
+def _game(date_str, home_id, home_score, away_id, away_score, *, status="Final", detailed="Final"):
+    """Build a minimal MLB Stats API game payload for the schedule endpoint."""
+    home_winner = home_score > away_score
+    return {
+        "status": {"abstractGameState": status, "detailedState": detailed},
+        "teams": {
+            "home": {
+                "team": {"id": home_id, "abbreviation": "HHH"},
+                "score": home_score,
+                "isWinner": home_winner,
+            },
+            "away": {
+                "team": {"id": away_id, "abbreviation": "AAA"},
+                "score": away_score,
+                "isWinner": not home_winner,
+            },
+        },
+    }
+
+
+class TestFetchRecentResults:
+    """116 = DET. Build a few schedule days, confirm we extract H/A + W/L correctly."""
+
+    def test_oldest_to_newest_order_with_home_away_split(self) -> None:
+        payload = {
+            "dates": [
+                {"date": "2026-04-30", "games": [_game("2026-04-30", 116, 5, 999, 2)]},
+                {"date": "2026-05-01", "games": [_game("2026-05-01", 999, 3, 116, 1)]},
+                {"date": "2026-05-02", "games": [_game("2026-05-02", 116, 2, 999, 4)]},
+            ]
+        }
+        with patch("mlb_api.requests.get", return_value=_mock_get(payload)):
+            results = fetch_recent_results("DET", n=10)
+
+        assert [r["date"] for r in results] == ["2026-04-30", "2026-05-01", "2026-05-02"]
+        assert [r["is_home"] for r in results] == [True, False, True]
+        assert [r["result"] for r in results] == ["W", "L", "L"]
+
+    def test_postponed_games_marked_p_and_kept(self) -> None:
+        payload = {
+            "dates": [
+                {
+                    "date": "2026-05-03",
+                    "games": [
+                        _game(
+                            "2026-05-03",
+                            116,
+                            0,
+                            999,
+                            0,
+                            status="Preview",
+                            detailed="Postponed",
+                        )
+                    ],
+                }
+            ]
+        }
+        with patch("mlb_api.requests.get", return_value=_mock_get(payload)):
+            results = fetch_recent_results("DET")
+        assert len(results) == 1
+        assert results[0]["result"] == "P"
+
+    def test_in_progress_games_skipped(self) -> None:
+        payload = {
+            "dates": [
+                {
+                    "date": "2026-05-04",
+                    "games": [
+                        _game(
+                            "2026-05-04",
+                            116,
+                            1,
+                            999,
+                            0,
+                            status="Live",
+                            detailed="In Progress",
+                        )
+                    ],
+                }
+            ]
+        }
+        with patch("mlb_api.requests.get", return_value=_mock_get(payload)):
+            assert fetch_recent_results("DET") == []
+
+    def test_n_caps_results_keeping_newest(self) -> None:
+        days = [
+            {"date": f"2026-04-{i:02d}", "games": [_game(f"2026-04-{i:02d}", 116, i, 999, 0)]}
+            for i in range(1, 13)
+        ]
+        with patch("mlb_api.requests.get", return_value=_mock_get({"dates": days})):
+            results = fetch_recent_results("DET", n=5)
+        assert len(results) == 5
+        assert results[0]["date"] == "2026-04-08"
+        assert results[-1]["date"] == "2026-04-12"
