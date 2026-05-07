@@ -51,6 +51,8 @@ A Discord bot named after **Harry Doyle**, the sardonic, bourbon-fueled announce
 | `/injury [team]` | Show a team's current IL (Injured List) stints |
 | `/transactions [team]` | Show recent roster moves for a team |
 | `/hope [team]` | Show a team's playoff odds (HOPE %) — based on FanGraphs odds |
+| `/abs [team]` | ABS challenge stats — team summary, or league leaders if no team |
+| `/playerabs [first] [last]` | ABS challenge stats for a single player |
 
 ## Quick Start
 
