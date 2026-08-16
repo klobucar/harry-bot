@@ -182,6 +182,7 @@ class StatsCommands(commands.Cog):
     async def compare(
         self,
         interaction: discord.Interaction,
+        *,
         p1_first: str,
         p1_last: str,
         p2_first: str,
