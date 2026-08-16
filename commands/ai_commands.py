@@ -259,7 +259,15 @@ class AICommands(commands.Cog):
                     ),
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
-                        max_output_tokens=110,  # Tightening this prevents the "explanation" from fitting
+                        # Gemini 3.x's thinking tokens draw from the same budget as
+                        # max_output_tokens. MINIMAL keeps thinking as low as the API
+                        # allows (it still spends a few tokens on thought signatures),
+                        # and the higher ceiling leaves room for the actual sentence
+                        # on top of that -- 110 alone left nothing but thinking tokens.
+                        thinking_config=types.ThinkingConfig(
+                            thinking_level=types.ThinkingLevel.MINIMAL
+                        ),
+                        max_output_tokens=400,
                         temperature=0.90,
                         top_p=0.95,
                     ),
