@@ -107,7 +107,7 @@ async def test_junkstats_client_error_swallowed(mock_client_class, bot, interact
 async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, interaction):
     from google.genai.errors import ClientError
 
-    from commands.ai_commands import PRIMARY_MODEL, RATE_LIMIT_FALLBACK_MODEL
+    from commands.ai_commands import FALLBACK_MODEL, PRIMARY_MODEL
 
     mock_client = mock_client_class.return_value
     mock_response = MagicMock()
@@ -124,7 +124,7 @@ async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, intera
     assert mock_client.aio.models.generate_content.call_count == 2
     first_call, second_call = mock_client.aio.models.generate_content.call_args_list
     assert first_call.kwargs["model"] == PRIMARY_MODEL
-    assert second_call.kwargs["model"] == RATE_LIMIT_FALLBACK_MODEL
+    assert second_call.kwargs["model"] == FALLBACK_MODEL
 
     interaction.followup.send.assert_called_once()
     args, _ = interaction.followup.send.call_args
@@ -134,7 +134,37 @@ async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, intera
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
 @patch("commands.ai_commands.genai.Client")
-async def test_junkstats_non_rate_limit_client_error_does_not_fall_back(
+async def test_junkstats_falls_back_on_server_unavailable(mock_client_class, bot, interaction):
+    from google.genai.errors import ServerError
+
+    from commands.ai_commands import FALLBACK_MODEL, PRIMARY_MODEL
+
+    mock_client = mock_client_class.return_value
+    mock_response = MagicMock()
+    mock_response.text = (
+        "The **1962 Mets** lost exactly 120 games in a season with no dome stadiums."
+    )
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=[ServerError(503, response_json={}), mock_response]
+    )
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    assert mock_client.aio.models.generate_content.call_count == 2
+    first_call, second_call = mock_client.aio.models.generate_content.call_args_list
+    assert first_call.kwargs["model"] == PRIMARY_MODEL
+    assert second_call.kwargs["model"] == FALLBACK_MODEL
+
+    interaction.followup.send.assert_called_once()
+    args, _ = interaction.followup.send.call_args
+    assert "1962 Mets" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_non_retryable_client_error_does_not_fall_back(
     mock_client_class, bot, interaction
 ):
     from google.genai.errors import ClientError

@@ -16,16 +16,17 @@ from discord import app_commands
 from discord.ext import commands
 from google import genai
 from google.genai import types
-from google.genai.errors import ClientError
+from google.genai.errors import APIError
 
 from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
 
 PRIMARY_MODEL = "gemini-3.7-flash"
-# Falls back here on a 429 — separate per-model quota bucket, so this
-# actually buys headroom instead of retrying into the same rate limit.
-RATE_LIMIT_FALLBACK_MODEL = "gemini-3.5-flash-lite"
+# Falls back here on a 429 (rate limit -- separate per-model quota bucket, so
+# this actually buys headroom) or a 503 (model temporarily overloaded).
+FALLBACK_MODEL = "gemini-3.5-flash-lite"
+RETRYABLE_STATUS_CODES = frozenset({429, 503})
 
 SYSTEM_INSTRUCTION = (
     "You are Harry Doyle, the cynical voice of baseball. You are reading from the "
@@ -279,15 +280,16 @@ class AICommands(commands.Cog):
         try:
             try:
                 response = await _generate(PRIMARY_MODEL)
-            except ClientError as exc:
-                if exc.code != 429:
+            except APIError as exc:
+                if exc.code not in RETRYABLE_STATUS_CODES:
                     raise
                 log.warning(
-                    "/junkstats rate-limited on %s, falling back to %s",
+                    "/junkstats got %s on %s, falling back to %s",
+                    exc.code,
                     PRIMARY_MODEL,
-                    RATE_LIMIT_FALLBACK_MODEL,
+                    FALLBACK_MODEL,
                 )
-                response = await _generate(RATE_LIMIT_FALLBACK_MODEL)
+                response = await _generate(FALLBACK_MODEL)
 
             usage = getattr(response, "usage_metadata", None)
             if usage is not None:
