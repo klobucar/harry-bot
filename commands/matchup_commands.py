@@ -43,6 +43,7 @@ class MatchupCommands(commands.Cog):
     async def _resolve_both(
         self,
         interaction: discord.Interaction,
+        *,
         pitcher_first: str,
         pitcher_last: str,
         batter_first: str,
@@ -97,6 +98,7 @@ class MatchupCommands(commands.Cog):
     async def matchup(
         self,
         interaction: discord.Interaction,
+        *,
         pitcher_first: str,
         pitcher_last: str,
         batter_first: str,
@@ -116,12 +118,12 @@ class MatchupCommands(commands.Cog):
         try:
             ids = await self._resolve_both(
                 interaction,
-                pitcher_first.strip(),
-                pitcher_last.strip(),
-                batter_first.strip(),
-                batter_last.strip(),
-                pitcher_name,
-                batter_name,
+                pitcher_first=pitcher_first.strip(),
+                pitcher_last=pitcher_last.strip(),
+                batter_first=batter_first.strip(),
+                batter_last=batter_last.strip(),
+                pitcher_name=pitcher_name,
+                batter_name=batter_name,
             )
             if ids is None:
                 return
@@ -183,6 +185,7 @@ class MatchupCommands(commands.Cog):
     async def matchupzone(
         self,
         interaction: discord.Interaction,
+        *,
         pitcher_first: str,
         pitcher_last: str,
         batter_first: str,
@@ -202,12 +205,12 @@ class MatchupCommands(commands.Cog):
         try:
             ids = await self._resolve_both(
                 interaction,
-                pitcher_first.strip(),
-                pitcher_last.strip(),
-                batter_first.strip(),
-                batter_last.strip(),
-                pitcher_name,
-                batter_name,
+                pitcher_first=pitcher_first.strip(),
+                pitcher_last=pitcher_last.strip(),
+                batter_first=batter_first.strip(),
+                batter_last=batter_last.strip(),
+                pitcher_name=pitcher_name,
+                batter_name=batter_name,
             )
             if ids is None:
                 return
