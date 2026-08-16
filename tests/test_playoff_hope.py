@@ -292,8 +292,8 @@ class TestHopeCommand:
         interaction.followup.send.assert_called_once()
         _, kwargs = interaction.followup.send.call_args
         embed: discord.Embed = kwargs["embed"]
-        assert "HOPE" in embed.title
-        assert "61.9%" in embed.title
+        assert "HOPE" in (embed.title or "")
+        assert "61.9%" in (embed.title or "")
         # Record/projection in description
         assert "18-18" in (embed.description or "")
         assert "83.4-78.6" in (embed.description or "")
@@ -301,13 +301,13 @@ class TestHopeCommand:
         field_names = {f.name for f in embed.fields}
         assert {"Make Playoffs", "Win Division", "Win Wild Card", "Win World Series"} <= field_names
         # Last-N emoji strip rendered with home-square + away-circle scheme
-        last_strip_field = next(f for f in embed.fields if "Last" in f.name)
+        last_strip_field = next(f for f in embed.fields if "Last" in (f.name or ""))
         assert last_strip_field.value == "🟩🔴"
         # mlbplayoffhope link is the last field, as a markdown link
         last = embed.fields[-1]
         assert last.name == "Further material"
-        assert "mlbplayoffhope.com" in last.value
-        assert "https://mlbplayoffhope.com/#tigers" in last.value
+        assert "mlbplayoffhope.com" in (last.value or "")
+        assert "https://mlbplayoffhope.com/#tigers" in (last.value or "")
         assert "FanGraphs" in (embed.footer.text or "")
 
     @patch("commands.info_commands.fetch_team_hope")
@@ -328,8 +328,8 @@ class TestHopeCommand:
 
         _, kwargs = interaction.followup.send.call_args
         embed: discord.Embed = kwargs["embed"]
-        assert "NOPE" in embed.title
-        assert "1.8%" in embed.title
+        assert "NOPE" in (embed.title or "")
+        assert "1.8%" in (embed.title or "")
 
     @patch("commands.info_commands.fetch_team_hope")
     async def test_hope_unknown_team_sends_error(self, mock_fetch, bot, interaction):

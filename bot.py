@@ -74,7 +74,7 @@ class HarryBot(commands.Bot):
             else:
                 # CommandInvokeError wraps the real exception in .original.
                 inner = getattr(error, "original", error)
-                log.exception("Unhandled app command error", exc_info=inner)
+                log.error("Unhandled app command error", exc_info=inner)
                 msg = harry_error(safe_exc_label(inner))
 
             if interaction.response.is_done():
