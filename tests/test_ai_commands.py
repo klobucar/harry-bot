@@ -184,6 +184,61 @@ async def test_junkstats_non_retryable_client_error_does_not_fall_back(
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
 @patch("commands.ai_commands.genai.Client")
+async def test_junkstats_retries_once_on_truncation(mock_client_class, bot, interaction):
+    from google.genai import types
+
+    truncated_response = MagicMock()
+    truncated_response.text = "Cap Anson committed exactly 43 errors while"
+    truncated_response.candidates = [MagicMock(finish_reason=types.FinishReason.MAX_TOKENS)]
+
+    complete_response = MagicMock()
+    complete_response.text = (
+        "**Cap Anson** committed exactly 43 errors while playing third base in 1879."
+    )
+    complete_response.candidates = [MagicMock(finish_reason=types.FinishReason.STOP)]
+
+    mock_client = mock_client_class.return_value
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=[truncated_response, complete_response]
+    )
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    assert mock_client.aio.models.generate_content.call_count == 2
+    interaction.followup.send.assert_called_once()
+    args, _ = interaction.followup.send.call_args
+    assert "playing third base" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_sends_text_if_still_truncated_after_retry(
+    mock_client_class, bot, interaction
+):
+    from google.genai import types
+
+    truncated_response = MagicMock()
+    truncated_response.text = "Cap Anson committed exactly 43 errors while"
+    truncated_response.candidates = [MagicMock(finish_reason=types.FinishReason.MAX_TOKENS)]
+
+    mock_client = mock_client_class.return_value
+    mock_client.aio.models.generate_content = AsyncMock(return_value=truncated_response)
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    # Only one retry -- no infinite loop chasing a clean finish_reason.
+    assert mock_client.aio.models.generate_content.call_count == 2
+    interaction.followup.send.assert_called_once()
+    args, _ = interaction.followup.send.call_args
+    assert "Cap Anson" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
 async def test_junkstats_timeout(mock_client_class, bot, interaction):
     # Setup mock client to raise TimeoutError
     mock_client = mock_client_class.return_value

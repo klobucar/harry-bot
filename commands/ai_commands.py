@@ -269,7 +269,9 @@ class AICommands(commands.Cog):
                         thinking_config=types.ThinkingConfig(
                             thinking_level=types.ThinkingLevel.LOW
                         ),
-                        max_output_tokens=400,
+                        # High enough that thinking + a full sentence can't collide --
+                        # the system prompt is what enforces brevity, not this ceiling.
+                        max_output_tokens=800,
                         temperature=0.90,
                         top_p=0.95,
                     ),
@@ -277,9 +279,16 @@ class AICommands(commands.Cog):
                 timeout=15.0,
             )
 
+        def _finish_reason(response) -> types.FinishReason | None:
+            try:
+                return response.candidates[0].finish_reason
+            except AttributeError, IndexError, TypeError:
+                return None
+
         try:
             try:
-                response = await _generate(PRIMARY_MODEL)
+                model_used = PRIMARY_MODEL
+                response = await _generate(model_used)
             except APIError as exc:
                 if exc.code not in RETRYABLE_STATUS_CODES:
                     raise
@@ -289,7 +298,12 @@ class AICommands(commands.Cog):
                     PRIMARY_MODEL,
                     FALLBACK_MODEL,
                 )
-                response = await _generate(FALLBACK_MODEL)
+                model_used = FALLBACK_MODEL
+                response = await _generate(model_used)
+
+            if _finish_reason(response) == types.FinishReason.MAX_TOKENS:
+                log.warning("/junkstats truncated at MAX_TOKENS on %s, retrying once", model_used)
+                response = await _generate(model_used)
 
             usage = getattr(response, "usage_metadata", None)
             if usage is not None:
