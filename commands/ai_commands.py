@@ -16,10 +16,16 @@ from discord import app_commands
 from discord.ext import commands
 from google import genai
 from google.genai import types
+from google.genai.errors import ClientError
 
 from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
+
+PRIMARY_MODEL = "gemini-3.7-flash"
+# Falls back here on a 429 — separate per-model quota bucket, so this
+# actually buys headroom instead of retrying into the same rate limit.
+RATE_LIMIT_FALLBACK_MODEL = "gemini-3.5-flash-lite"
 
 SYSTEM_INSTRUCTION = (
     "You are Harry Doyle, the cynical voice of baseball. You are reading from the "
@@ -238,12 +244,12 @@ class AICommands(commands.Cog):
         selected_era = random.choice(eras)  # noqa: S311
         selected_subject = random.choice(["player", "team"])  # noqa: S311
 
-        try:
+        async def _generate(model: str):
             # Using the Async Client (aio) with a 15s timeout.
             # This allows true cancellation of the network request if timed out.
-            response = await asyncio.wait_for(
+            return await asyncio.wait_for(
                 client.aio.models.generate_content(
-                    model="gemini-3.1-flash-lite-preview",
+                    model=model,
                     contents=(
                         f"Use the metric '{selected_metric}' as inspiration to find a convoluted, "
                         f"mundane, and technically true stat about a {selected_subject} from {selected_era}. "
@@ -260,6 +266,19 @@ class AICommands(commands.Cog):
                 ),
                 timeout=15.0,
             )
+
+        try:
+            try:
+                response = await _generate(PRIMARY_MODEL)
+            except ClientError as exc:
+                if exc.code != 429:
+                    raise
+                log.warning(
+                    "/junkstats rate-limited on %s, falling back to %s",
+                    PRIMARY_MODEL,
+                    RATE_LIMIT_FALLBACK_MODEL,
+                )
+                response = await _generate(RATE_LIMIT_FALLBACK_MODEL)
 
             usage = getattr(response, "usage_metadata", None)
             if usage is not None:
