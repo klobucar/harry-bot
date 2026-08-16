@@ -107,7 +107,7 @@ async def test_junkstats_client_error_swallowed(mock_client_class, bot, interact
 async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, interaction):
     from google.genai.errors import ClientError
 
-    from commands.ai_commands import PRIMARY_MODEL, RATE_LIMIT_FALLBACK_MODEL
+    from commands.ai_commands import FALLBACK_MODEL, PRIMARY_MODEL
 
     mock_client = mock_client_class.return_value
     mock_response = MagicMock()
@@ -124,7 +124,7 @@ async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, intera
     assert mock_client.aio.models.generate_content.call_count == 2
     first_call, second_call = mock_client.aio.models.generate_content.call_args_list
     assert first_call.kwargs["model"] == PRIMARY_MODEL
-    assert second_call.kwargs["model"] == RATE_LIMIT_FALLBACK_MODEL
+    assert second_call.kwargs["model"] == FALLBACK_MODEL
 
     interaction.followup.send.assert_called_once()
     args, _ = interaction.followup.send.call_args
@@ -134,7 +134,37 @@ async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, intera
 @pytest.mark.anyio
 @patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
 @patch("commands.ai_commands.genai.Client")
-async def test_junkstats_non_rate_limit_client_error_does_not_fall_back(
+async def test_junkstats_falls_back_on_server_unavailable(mock_client_class, bot, interaction):
+    from google.genai.errors import ServerError
+
+    from commands.ai_commands import FALLBACK_MODEL, PRIMARY_MODEL
+
+    mock_client = mock_client_class.return_value
+    mock_response = MagicMock()
+    mock_response.text = (
+        "The **1962 Mets** lost exactly 120 games in a season with no dome stadiums."
+    )
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=[ServerError(503, response_json={}), mock_response]
+    )
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    assert mock_client.aio.models.generate_content.call_count == 2
+    first_call, second_call = mock_client.aio.models.generate_content.call_args_list
+    assert first_call.kwargs["model"] == PRIMARY_MODEL
+    assert second_call.kwargs["model"] == FALLBACK_MODEL
+
+    interaction.followup.send.assert_called_once()
+    args, _ = interaction.followup.send.call_args
+    assert "1962 Mets" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_non_retryable_client_error_does_not_fall_back(
     mock_client_class, bot, interaction
 ):
     from google.genai.errors import ClientError
@@ -149,6 +179,61 @@ async def test_junkstats_non_rate_limit_client_error_does_not_fall_back(
 
     assert mock_client.aio.models.generate_content.call_count == 1
     interaction.followup.send.assert_called_once()
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_retries_once_on_truncation(mock_client_class, bot, interaction):
+    from google.genai import types
+
+    truncated_response = MagicMock()
+    truncated_response.text = "Cap Anson committed exactly 43 errors while"
+    truncated_response.candidates = [MagicMock(finish_reason=types.FinishReason.MAX_TOKENS)]
+
+    complete_response = MagicMock()
+    complete_response.text = (
+        "**Cap Anson** committed exactly 43 errors while playing third base in 1879."
+    )
+    complete_response.candidates = [MagicMock(finish_reason=types.FinishReason.STOP)]
+
+    mock_client = mock_client_class.return_value
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=[truncated_response, complete_response]
+    )
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    assert mock_client.aio.models.generate_content.call_count == 2
+    interaction.followup.send.assert_called_once()
+    args, _ = interaction.followup.send.call_args
+    assert "playing third base" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_sends_text_if_still_truncated_after_retry(
+    mock_client_class, bot, interaction
+):
+    from google.genai import types
+
+    truncated_response = MagicMock()
+    truncated_response.text = "Cap Anson committed exactly 43 errors while"
+    truncated_response.candidates = [MagicMock(finish_reason=types.FinishReason.MAX_TOKENS)]
+
+    mock_client = mock_client_class.return_value
+    mock_client.aio.models.generate_content = AsyncMock(return_value=truncated_response)
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    # Only one retry -- no infinite loop chasing a clean finish_reason.
+    assert mock_client.aio.models.generate_content.call_count == 2
+    interaction.followup.send.assert_called_once()
+    args, _ = interaction.followup.send.call_args
+    assert "Cap Anson" in args[0]
 
 
 @pytest.mark.anyio

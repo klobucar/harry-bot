@@ -16,16 +16,17 @@ from discord import app_commands
 from discord.ext import commands
 from google import genai
 from google.genai import types
-from google.genai.errors import ClientError
+from google.genai.errors import APIError
 
 from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
 
 PRIMARY_MODEL = "gemini-3.7-flash"
-# Falls back here on a 429 — separate per-model quota bucket, so this
-# actually buys headroom instead of retrying into the same rate limit.
-RATE_LIMIT_FALLBACK_MODEL = "gemini-3.5-flash-lite"
+# Falls back here on a 429 (rate limit -- separate per-model quota bucket, so
+# this actually buys headroom) or a 503 (model temporarily overloaded).
+FALLBACK_MODEL = "gemini-3.5-flash-lite"
+RETRYABLE_STATUS_CODES = frozenset({429, 503})
 
 SYSTEM_INSTRUCTION = (
     "You are Harry Doyle, the cynical voice of baseball. You are reading from the "
@@ -259,7 +260,18 @@ class AICommands(commands.Cog):
                     ),
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
-                        max_output_tokens=110,  # Tightening this prevents the "explanation" from fitting
+                        # Gemini 3.x's thinking tokens draw from the same budget as
+                        # max_output_tokens. LOW is the lowest level both the primary
+                        # and fallback model accept (3.7 Flash rejects MINIMAL with a
+                        # 400), and the higher ceiling leaves room for the actual
+                        # sentence on top of it -- 110 alone left nothing but thinking
+                        # tokens.
+                        thinking_config=types.ThinkingConfig(
+                            thinking_level=types.ThinkingLevel.LOW
+                        ),
+                        # High enough that thinking + a full sentence can't collide --
+                        # the system prompt is what enforces brevity, not this ceiling.
+                        max_output_tokens=800,
                         temperature=0.90,
                         top_p=0.95,
                     ),
@@ -267,18 +279,31 @@ class AICommands(commands.Cog):
                 timeout=15.0,
             )
 
+        def _finish_reason(response) -> types.FinishReason | None:
+            try:
+                return response.candidates[0].finish_reason
+            except AttributeError, IndexError, TypeError:
+                return None
+
         try:
             try:
-                response = await _generate(PRIMARY_MODEL)
-            except ClientError as exc:
-                if exc.code != 429:
+                model_used = PRIMARY_MODEL
+                response = await _generate(model_used)
+            except APIError as exc:
+                if exc.code not in RETRYABLE_STATUS_CODES:
                     raise
                 log.warning(
-                    "/junkstats rate-limited on %s, falling back to %s",
+                    "/junkstats got %s on %s, falling back to %s",
+                    exc.code,
                     PRIMARY_MODEL,
-                    RATE_LIMIT_FALLBACK_MODEL,
+                    FALLBACK_MODEL,
                 )
-                response = await _generate(RATE_LIMIT_FALLBACK_MODEL)
+                model_used = FALLBACK_MODEL
+                response = await _generate(model_used)
+
+            if _finish_reason(response) == types.FinishReason.MAX_TOKENS:
+                log.warning("/junkstats truncated at MAX_TOKENS on %s, retrying once", model_used)
+                response = await _generate(model_used)
 
             usage = getattr(response, "usage_metadata", None)
             if usage is not None:
