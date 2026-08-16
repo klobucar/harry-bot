@@ -111,7 +111,9 @@ async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, intera
 
     mock_client = mock_client_class.return_value
     mock_response = MagicMock()
-    mock_response.text = "The **1962 Mets** lost exactly 120 games in a season with no dome stadiums."
+    mock_response.text = (
+        "The **1962 Mets** lost exactly 120 games in a season with no dome stadiums."
+    )
     mock_client.aio.models.generate_content = AsyncMock(
         side_effect=[ClientError(429, response_json={}), mock_response]
     )
