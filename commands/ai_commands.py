@@ -260,12 +260,13 @@ class AICommands(commands.Cog):
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
                         # Gemini 3.x's thinking tokens draw from the same budget as
-                        # max_output_tokens. MINIMAL keeps thinking as low as the API
-                        # allows (it still spends a few tokens on thought signatures),
-                        # and the higher ceiling leaves room for the actual sentence
-                        # on top of that -- 110 alone left nothing but thinking tokens.
+                        # max_output_tokens. LOW is the lowest level both the primary
+                        # and fallback model accept (3.7 Flash rejects MINIMAL with a
+                        # 400), and the higher ceiling leaves room for the actual
+                        # sentence on top of it -- 110 alone left nothing but thinking
+                        # tokens.
                         thinking_config=types.ThinkingConfig(
-                            thinking_level=types.ThinkingLevel.MINIMAL
+                            thinking_level=types.ThinkingLevel.LOW
                         ),
                         max_output_tokens=400,
                         temperature=0.90,
