@@ -22,10 +22,15 @@ from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
 
-PRIMARY_MODEL = "gemini-3.7-flash"
-# Falls back here on a 429 (rate limit -- separate per-model quota bucket, so
-# this actually buys headroom) or a 503 (model temporarily overloaded).
-FALLBACK_MODEL = "gemini-3.5-flash-lite"
+# Tried top to bottom. A request steps down a rung on a 429 (rate limit --
+# each model has its own quota bucket, so the next rung buys real headroom),
+# a 503 (model temporarily overloaded), or a timeout. Any other error stops
+# the climb immediately. Every rung must accept the ThinkingConfig below.
+MODEL_LADDER: tuple[str, ...] = (
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.5-flash-lite",
+)
 RETRYABLE_STATUS_CODES = frozenset({429, 503})
 
 SYSTEM_INSTRUCTION = (
@@ -261,8 +266,8 @@ class AICommands(commands.Cog):
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
                         # Gemini 3.x's thinking tokens draw from the same budget as
-                        # max_output_tokens. LOW is the lowest level both the primary
-                        # and fallback model accept (3.7 Flash rejects MINIMAL with a
+                        # max_output_tokens. LOW is the lowest level every ladder
+                        # rung accepts (3.8 and 3.7 Flash reject MINIMAL with a
                         # 400), and the higher ceiling leaves room for the actual
                         # sentence on top of it -- 110 alone left nothing but thinking
                         # tokens.
@@ -285,21 +290,30 @@ class AICommands(commands.Cog):
             except AttributeError, IndexError, TypeError:
                 return None
 
-        try:
-            try:
-                model_used = PRIMARY_MODEL
-                response = await _generate(model_used)
-            except APIError as exc:
-                if exc.code not in RETRYABLE_STATUS_CODES:
-                    raise
+        async def _climb_ladder():
+            """Walk MODEL_LADDER until a rung answers; returns (response, model)."""
+            for rung, model in enumerate(MODEL_LADDER):
+                is_last = rung == len(MODEL_LADDER) - 1
+                try:
+                    return await _generate(model), model
+                except APIError as exc:
+                    if exc.code not in RETRYABLE_STATUS_CODES or is_last:
+                        raise
+                    reason = str(exc.code)
+                except TimeoutError:
+                    if is_last:
+                        raise
+                    reason = "timeout"
                 log.warning(
-                    "/junkstats got %s on %s, falling back to %s",
-                    exc.code,
-                    PRIMARY_MODEL,
-                    FALLBACK_MODEL,
+                    "/junkstats got %s on %s, stepping down to %s",
+                    reason,
+                    model,
+                    MODEL_LADDER[rung + 1],
                 )
-                model_used = FALLBACK_MODEL
-                response = await _generate(model_used)
+            raise AssertionError("MODEL_LADDER is empty")
+
+        try:
+            response, model_used = await _climb_ladder()
 
             if _finish_reason(response) == types.FinishReason.MAX_TOKENS:
                 log.warning("/junkstats truncated at MAX_TOKENS on %s, retrying once", model_used)
@@ -331,7 +345,7 @@ class AICommands(commands.Cog):
             await interaction.followup.send(f"> {fact}")
 
         except TimeoutError:
-            log.warning("/junkstats timed out (15s)")
+            log.warning("/junkstats timed out")
             await interaction.followup.send(
                 harry_error("The AI is juust a bit unresponsive. Maybe it's checking the bullpen."),
                 ephemeral=True,

@@ -107,7 +107,7 @@ async def test_junkstats_client_error_swallowed(mock_client_class, bot, interact
 async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, interaction):
     from google.genai.errors import ClientError
 
-    from commands.ai_commands import FALLBACK_MODEL, PRIMARY_MODEL
+    from commands.ai_commands import MODEL_LADDER
 
     mock_client = mock_client_class.return_value
     mock_response = MagicMock()
@@ -123,8 +123,8 @@ async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, intera
 
     assert mock_client.aio.models.generate_content.call_count == 2
     first_call, second_call = mock_client.aio.models.generate_content.call_args_list
-    assert first_call.kwargs["model"] == PRIMARY_MODEL
-    assert second_call.kwargs["model"] == FALLBACK_MODEL
+    assert first_call.kwargs["model"] == MODEL_LADDER[0]
+    assert second_call.kwargs["model"] == MODEL_LADDER[1]
 
     interaction.followup.send.assert_called_once()
     args, _ = interaction.followup.send.call_args
@@ -137,7 +137,7 @@ async def test_junkstats_falls_back_on_rate_limit(mock_client_class, bot, intera
 async def test_junkstats_falls_back_on_server_unavailable(mock_client_class, bot, interaction):
     from google.genai.errors import ServerError
 
-    from commands.ai_commands import FALLBACK_MODEL, PRIMARY_MODEL
+    from commands.ai_commands import MODEL_LADDER
 
     mock_client = mock_client_class.return_value
     mock_response = MagicMock()
@@ -153,8 +153,8 @@ async def test_junkstats_falls_back_on_server_unavailable(mock_client_class, bot
 
     assert mock_client.aio.models.generate_content.call_count == 2
     first_call, second_call = mock_client.aio.models.generate_content.call_args_list
-    assert first_call.kwargs["model"] == PRIMARY_MODEL
-    assert second_call.kwargs["model"] == FALLBACK_MODEL
+    assert first_call.kwargs["model"] == MODEL_LADDER[0]
+    assert second_call.kwargs["model"] == MODEL_LADDER[1]
 
     interaction.followup.send.assert_called_once()
     args, _ = interaction.followup.send.call_args
@@ -250,3 +250,75 @@ async def test_junkstats_timeout(mock_client_class, bot, interaction):
     interaction.followup.send.assert_called_once()
     args, _ = interaction.followup.send.call_args
     assert "unresponsive" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_steps_down_on_timeout(mock_client_class, bot, interaction):
+    from commands.ai_commands import MODEL_LADDER
+
+    mock_response = MagicMock()
+    mock_response.text = "**Rickey Henderson** stole exactly 3 bases on Tuesdays in May 1982."
+    mock_client = mock_client_class.return_value
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=[asyncio.TimeoutError, mock_response]
+    )
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    first_call, second_call = mock_client.aio.models.generate_content.call_args_list
+    assert first_call.kwargs["model"] == MODEL_LADDER[0]
+    assert second_call.kwargs["model"] == MODEL_LADDER[1]
+    args, _ = interaction.followup.send.call_args
+    assert "Rickey Henderson" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.MODEL_LADDER", ("rung-a", "rung-b", "rung-c"))
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_climbs_full_ladder(mock_client_class, bot, interaction):
+    from google.genai.errors import ClientError, ServerError
+
+    mock_response = MagicMock()
+    mock_response.text = "The **1884 Quicksteps** turned exactly 7 double plays on Thursdays."
+    mock_client = mock_client_class.return_value
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=[
+            ClientError(429, response_json={}),
+            ServerError(503, response_json={}),
+            mock_response,
+        ]
+    )
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    models = [c.kwargs["model"] for c in mock_client.aio.models.generate_content.call_args_list]
+    assert models == ["rung-a", "rung-b", "rung-c"]
+    args, _ = interaction.followup.send.call_args
+    assert "1884 Quicksteps" in args[0]
+
+
+@pytest.mark.anyio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "fake_key"})
+@patch("commands.ai_commands.genai.Client")
+async def test_junkstats_every_rung_rate_limited(mock_client_class, bot, interaction):
+    from google.genai.errors import ClientError
+
+    from commands.ai_commands import MODEL_LADDER
+
+    mock_client = mock_client_class.return_value
+    mock_client.aio.models.generate_content = AsyncMock(
+        side_effect=ClientError(429, response_json={})
+    )
+
+    cog = AICommands(bot)
+    await cog.junkstats.callback(cog, interaction)  # type: ignore
+
+    assert mock_client.aio.models.generate_content.call_count == len(MODEL_LADDER)
+    interaction.followup.send.assert_called_once()
+    _, kwargs = interaction.followup.send.call_args
+    assert kwargs["ephemeral"] is True
