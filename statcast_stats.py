@@ -13,11 +13,14 @@ unaffected.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, timedelta
+from io import BytesIO
 from typing import Any
 
 import bigleague
-from bigleague.http import mlb_get
+import polars as pl
+from bigleague.http import mlb_get, savant_get
 from bigleague.mlb import TEAM_IDS
 from bigleague.stats import (
     AB_EVENTS,
@@ -27,7 +30,6 @@ from bigleague.stats import (
     matchup_stats,
     parse_exit_velo,
     parse_percentile_ranks,
-    parse_pitch_arsenal,
     season_range,
 )
 
@@ -101,22 +103,79 @@ async def compute_matchup_stats(
 # ---------------------------------------------------------------------------
 
 
+_ARSENAL_URL = "https://baseballsavant.mlb.com/leaderboard/pitch-arsenals"
+
+
+async def _arsenal_row(pitcher_id: int, year: int, arsenal_type: str) -> dict[str, Any]:
+    """One pitcher's row from Savant's wide pitch-arsenals leaderboard.
+
+    ``arsenal_type`` is ``avg_speed``, ``avg_spin`` or ``n_`` (usage %); the
+    CSV has one column per pitch (``ff_avg_speed``, ``n_ff``, ...). Returns
+    ``{}`` when the pitcher isn't on the board.
+    """
+    resp = await savant_get(
+        _ARSENAL_URL,
+        # min=10 pitches so fringe arms aren't excluded.
+        {"year": str(year), "min": "10", "type": arsenal_type, "hand": "", "csv": "true"},
+    )
+    if not resp.content.strip():
+        return {}
+    df = pl.read_csv(BytesIO(resp.content), infer_schema_length=2000, ignore_errors=True)
+    if df.is_empty() or "pitcher" not in df.columns:
+        return {}
+    rows = df.filter(pl.col("pitcher") == pitcher_id).to_dicts()
+    return rows[0] if rows else {}
+
+
+def _to_float(value: Any) -> float | None:
+    """Savant mixes floats, ints, numeric strings and blanks in these CSVs."""
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except TypeError, ValueError:
+        return None
+
+
 async def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
     """Fetch pitch arsenal stats for a pitcher in a given year.
 
     Returns a list of dicts with keys: pitch, mph, spin, usage (usage %),
     sorted by usage descending. Raises ValueError if the pitcher doesn't
     appear in arsenal data.
+
+    Reads Savant's pitch-arsenals leaderboard directly: bigleague 0.1.0's
+    ``pitcher_pitch_arsenal`` hits the pitch-arsenal-stats (run value) board,
+    which carries no velocity or spin.
     """
-    df = await bigleague.pitcher_pitch_arsenal(pitcher_id, year)
-    arsenal = parse_pitch_arsenal(df)
-    if not arsenal:
+    speed, spin, usage = await asyncio.gather(
+        _arsenal_row(pitcher_id, year, "avg_speed"),
+        _arsenal_row(pitcher_id, year, "avg_spin"),
+        _arsenal_row(pitcher_id, year, "n_"),
+    )
+
+    pitches: list[tuple[str, float, float, float]] = []
+    for col, raw_mph in speed.items():
+        if not col.endswith("_avg_speed"):
+            continue
+        prefix = col.removesuffix("_avg_speed")
+        mph = _to_float(raw_mph)
+        share = _to_float(usage.get(f"n_{prefix}"))
+        if mph is None or share is None:
+            continue
+        pitches.append((prefix, mph, _to_float(spin.get(f"{prefix}_avg_spin")) or 0.0, share))
+
+    total = sum(share for *_, share in pitches)
+    if not pitches or total <= 0:
         raise ValueError(f"No arsenal data for pitcher_id={pitcher_id} in {year}.")
-    # bigleague names the usage column `usage_pct`; the embed layer expects `usage`.
-    return [
-        {"pitch": p["pitch"], "mph": p["mph"], "spin": p["spin"], "usage": p["usage_pct"]}
-        for p in arsenal
+
+    # Savant's shares are rounded; renormalise so usage sums to 100.
+    arsenal = [
+        {"pitch": prefix.upper(), "mph": mph, "spin": spin_rate, "usage": share / total * 100}
+        for prefix, mph, spin_rate, share in pitches
     ]
+    arsenal.sort(key=lambda p: p["usage"], reverse=True)
+    return arsenal
 
 
 # ---------------------------------------------------------------------------

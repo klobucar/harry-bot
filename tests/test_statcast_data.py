@@ -9,9 +9,9 @@ boundary and await the facade.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-import polars as pl
 import pytest
 
 from statcast import fetch_pitch_arsenal, fetch_schedule, fetch_standings
@@ -22,28 +22,73 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+def _savant_csv(arsenal_type: str, rows: list[tuple[int, str, str]]) -> SimpleNamespace:
+    """A fake Savant response for the wide pitch-arsenals board (FF + SL only)."""
+    cols = {
+        "avg_speed": ("ff_avg_speed", "sl_avg_speed"),
+        "avg_spin": ("ff_avg_spin", "sl_avg_spin"),
+        "n_": ("n_ff", "n_sl"),
+    }[arsenal_type]
+    lines = [f'"last_name, first_name",pitcher,{cols[0]},{cols[1]}']
+    lines += [f'"Doe, John",{pid},{ff},{sl}' for pid, ff, sl in rows]
+    return SimpleNamespace(content="\n".join(lines).encode())
+
+
+def _fake_savant(boards: dict[str, list[tuple[int, str, str]]]) -> AsyncMock:
+    async def _get(_url: str, params: dict[str, str]) -> SimpleNamespace:
+        return _savant_csv(params["type"], boards[params["type"]])
+
+    return AsyncMock(side_effect=_get)
+
+
 @pytest.mark.anyio
 class TestFetchPitchArsenal:
-    async def test_remaps_usage_and_sorts(self) -> None:
-        frame = pl.DataFrame(
-            [
-                {"pitch_type": "FF", "avg_speed": 95.1, "avg_spin": 2300.0, "pitches": 600},
-                {"pitch_type": "SL", "avg_speed": 86.4, "avg_spin": 2500.0, "pitches": 400},
-            ]
-        )
-        with patch("bigleague.pitcher_pitch_arsenal", AsyncMock(return_value=frame)):
+    async def test_merges_boards_and_sorts_by_usage(self) -> None:
+        boards = {
+            "avg_speed": [(999, "90.0", "80.0"), (123456, "86.4", "95.1")],
+            "avg_spin": [(999, "2000", "2100"), (123456, "2500", "2300")],
+            # Rounded shares that don't sum to 100 -> renormalised.
+            "n_": [(999, "50.0", "50.0"), (123456, "30.0", "45.0")],
+        }
+        with patch("statcast_stats.savant_get", _fake_savant(boards)) as mock:
             out = await fetch_pitch_arsenal(123456, 2024)
 
-        assert [p["pitch"] for p in out] == ["FF", "SL"]  # sorted by usage desc
-        # usage % computed from the 600/400 split, exposed under the `usage` key.
+        assert mock.await_count == 3
+        assert [p["pitch"] for p in out] == ["SL", "FF"]  # sorted by usage desc
         assert set(out[0]) == {"pitch", "mph", "spin", "usage"}
         assert out[0]["usage"] == pytest.approx(60.0)
         assert out[1]["usage"] == pytest.approx(40.0)
         assert out[0]["mph"] == pytest.approx(95.1)
+        assert out[0]["spin"] == pytest.approx(2300.0)
 
-    async def test_empty_raises(self) -> None:
+    async def test_skips_pitches_the_pitcher_does_not_throw(self) -> None:
+        boards = {
+            "avg_speed": [(123456, "95.1", "")],
+            "avg_spin": [(123456, "2300", "")],
+            "n_": [(123456, "100.0", "")],
+        }
+        with patch("statcast_stats.savant_get", _fake_savant(boards)):
+            out = await fetch_pitch_arsenal(123456, 2024)
+
+        assert [p["pitch"] for p in out] == ["FF"]
+        assert out[0]["usage"] == pytest.approx(100.0)
+
+    async def test_missing_pitcher_raises(self) -> None:
+        boards = {
+            "avg_speed": [(999, "90.0", "80.0")],
+            "avg_spin": [(999, "2000", "2100")],
+            "n_": [(999, "50.0", "50.0")],
+        }
         with (
-            patch("bigleague.pitcher_pitch_arsenal", AsyncMock(return_value=pl.DataFrame())),
+            patch("statcast_stats.savant_get", _fake_savant(boards)),
+            pytest.raises(ValueError, match="No arsenal data"),
+        ):
+            await fetch_pitch_arsenal(123456, 2024)
+
+    async def test_empty_response_raises(self) -> None:
+        empty = AsyncMock(return_value=SimpleNamespace(content=b""))
+        with (
+            patch("statcast_stats.savant_get", empty),
             pytest.raises(ValueError, match="No arsenal data"),
         ):
             await fetch_pitch_arsenal(123456, 2024)
