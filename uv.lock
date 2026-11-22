@@ -204,7 +204,7 @@ wheels = [
 
 [[package]]
 name = "bigleague"
-version = "0.1.1"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "curl-cffi" },
@@ -213,9 +213,9 @@ dependencies = [
     { name = "numpy" },
     { name = "polars" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/14/b0dfe1101e0fb4bacc428ab306df9c83a582c93dd714a642da8f7a6e47c2/bigleague-0.1.1.tar.gz", hash = "sha256:7d19fe8898c97a1072e80de18cb1cc5ac7f7fe8cbad2ec035248870bc5a970cc", size = 77252, upload-time = "2026-11-22T01:41:43.373Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/16/a50ed21cba748d8b59d274b831cdbd42ae7c24c121f3592348b27433ea8e/bigleague-0.2.0.tar.gz", hash = "sha256:7d84fbd3f87f65a9c6f98d9c9efe479f5baddcbc453aca4933ae6051fdcfe02d", size = 179612, upload-time = "2026-11-22T19:24:15.88Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/d1/e88842660a9e20ed5aaae60ef16ddfddc5822c1c2dd7e10012a9ff0c1869/bigleague-0.1.1-py3-none-any.whl", hash = "sha256:8fbce7a1f0e02862a3e23524ce3352c0a85ba77c15b22fb80b433ad61a6e53b5", size = 51749, upload-time = "2026-11-22T01:41:41.83Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/cf/ae278a9eb00ef518b6ad1147cdd5387a2c06be039877a1de3de0a0777aaa/bigleague-0.2.0-py3-none-any.whl", hash = "sha256:5f59834e350216c1265e1ce31e811bd73eaf4513f364e01a38f58eda72355328", size = 151075, upload-time = "2026-11-22T19:24:14.397Z" },
 ]
 
 [package.optional-dependencies]
@@ -225,15 +225,15 @@ bloom = [
 
 [[package]]
 name = "bouquet-bloom"
-version = "0.1.1"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7a/7a/8cbb000024168ee3a52ff7b453d3c3b50ec5d231bab59975c98d0243e54b/bouquet_bloom-0.1.1.tar.gz", hash = "sha256:8a2e0980ebda1c2e73effb013fbc1b90330a72cc5600536bfcea4a5f2281ec30", size = 77608, upload-time = "2026-11-22T00:11:21.297Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/6b/86dce4eb2cde735b7aad65d0bac3fb9b92675ec0816caa4af2a65bfc9e95/bouquet_bloom-0.2.0.tar.gz", hash = "sha256:eba2284810e96f8f1e2e32d4df43c3453881e9be6a6a04c197e5d487cab758f3", size = 82584, upload-time = "2026-11-22T18:26:37.789Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/e1/5b31c11a89e496389058afde23d8aef5cb43282ae24ccfb77198c859d3ec/bouquet_bloom-0.1.1-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:a4f06fa335f9cda7ba986c9af74a2c72effc402ca4d194fbd9502eb87c5fe4ee", size = 237187, upload-time = "2026-11-22T00:11:13.814Z" },
-    { url = "https://files.pythonhosted.org/packages/49/67/71705881fc14fea5ae9d0c4dc9767d6d21306fadf77d4a2913b3c6631d99/bouquet_bloom-0.1.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:669fbb49bf1ff1c12a97bf6ee936b00172208d19d935d525002283ce011cfe6a", size = 233487, upload-time = "2026-11-22T00:11:15.479Z" },
-    { url = "https://files.pythonhosted.org/packages/19/2e/565fc0cd1d9bf93fdade0c761929da6cc3d608aa7497c91fc8091f8d1d67/bouquet_bloom-0.1.1-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:7a715cb834fb7ecaeaa3b4402d3ba1f47a4216ab863dd23d67f987dbc8dbe6e9", size = 247498, upload-time = "2026-11-22T00:11:16.812Z" },
-    { url = "https://files.pythonhosted.org/packages/68/dc/c861916a6b9c57b5aa5fd9203bcb8a46601e6548c281047aa0e0a10b0fd0/bouquet_bloom-0.1.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:93494e9b48b553f285efcf61a6286b9395ba7b33c0dd14ec2eaeb8dd614b7bbc", size = 253044, upload-time = "2026-11-22T00:11:18.536Z" },
-    { url = "https://files.pythonhosted.org/packages/90/ee/4698a016898963ac5a790033de16efe91e52771e8796e6f928d37605df6f/bouquet_bloom-0.1.1-cp311-abi3-win_amd64.whl", hash = "sha256:68a1118f6d295179a6d1999dd9ef6be2323bcbb01041367cadb0ebc4424e4371", size = 167876, upload-time = "2026-11-22T00:11:19.786Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/c2/c64954e204ad705887d8917e1416ae8bd02fcb31454ea61bdd15cdde5f08/bouquet_bloom-0.2.0-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:141b483407f511c4e8168ec207740cca063f1b4d9437bd194a4bf7afa43091a5", size = 252134, upload-time = "2026-11-22T18:26:32.344Z" },
+    { url = "https://files.pythonhosted.org/packages/51/20/0e31ef5c219569b32538a3488a48c0eb9e1f88d18b418137efb97b982e09/bouquet_bloom-0.2.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:150f9ca8fa074ef5b1d1e93afa5db753face0677107afda6f300cc602dd57596", size = 248868, upload-time = "2026-11-22T18:26:33.474Z" },
+    { url = "https://files.pythonhosted.org/packages/34/b4/0b1a878f460bc4cafd7bf843c0579a33f5e88aa0558932731227cde47506/bouquet_bloom-0.2.0-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:63687fd7a36b1b5c1af5ab29221aa637a29f3bc3d377cac6824a81021eb1a5d9", size = 263223, upload-time = "2026-11-22T18:26:34.607Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/84/bde35da3bf0acd741051f26baa92625ab02281bb9d5c3f46db8c7ce6c012/bouquet_bloom-0.2.0-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:b2560012d87a0c7f2d5ef9ace5513c515af3d865023885e0c9bbc6fe356c657d", size = 267982, upload-time = "2026-11-22T18:26:35.713Z" },
+    { url = "https://files.pythonhosted.org/packages/97/d5/01664bf884af37a3a17f50674d4ee957f9cff67f0ad927408d535c81a0ff/bouquet_bloom-0.2.0-cp311-abi3-win_amd64.whl", hash = "sha256:7415f62a9f2b4219884408237ce5c236a8fe579417ba0b49f7b279be2e899101", size = 184538, upload-time = "2026-11-22T18:26:36.772Z" },
 ]
 
 [[package]]
@@ -834,7 +834,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bigleague", extras = ["bloom"], specifier = ">=0.1.1" },
+    { name = "bigleague", extras = ["bloom"], specifier = ">=0.2.0" },
     { name = "discord-py", specifier = ">=2.7.1" },
     { name = "google-genai", specifier = ">=1.67.0" },
     { name = "structlog", specifier = ">=25.5.0" },
