@@ -117,6 +117,8 @@ Fly collects Harry's Prometheus metrics every 15 seconds. You can query them in 
 | `harry_junkstats_attempts_total` | `/junkstats` Gemini calls, by `model` and `result` (`ok`, `timeout`, or an HTTP status such as `429`). |
 | `process_resident_memory_bytes` | Harry's memory use. |
 
+For a ready-made dashboard, import [`grafana/harry-dashboard.json`](grafana/harry-dashboard.json): in Grafana, choose **Dashboards → New → Import**, upload the file, and pick the Prometheus data source. It charts command volume, latency, and errors; the `/junkstats` model ladder; and the machine's memory, CPU burst balance, and cache volume. Importing it again replaces the previous copy.
+
 [Fly metrics docs](https://fly.io/docs/monitoring/metrics/)
 
 ## License
