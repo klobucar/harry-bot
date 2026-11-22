@@ -9,7 +9,7 @@ dependencies = [
     "google-genai>=1.67.0",
     "tzdata>=2026.1",
     "structlog>=25.5.0",
-    "bigleague[bloom]>=0.1.1",
+    "bigleague[bloom]>=0.2.0",
 ]
 
 [project.scripts]
