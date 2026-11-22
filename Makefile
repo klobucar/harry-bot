@@ -33,4 +33,4 @@ typecheck:
 	uv run ty check
 
 clean:
-	rm -rf .venv .pytest_cache .ruff_cache __pycache__ .pybaseball_cache
+	rm -rf .venv .pytest_cache .ruff_cache __pycache__

@@ -7,13 +7,10 @@ requires-python = ">=3.14"
 dependencies = [
     "discord-py>=2.7.1",
     "google-genai>=1.67.0",
-    "curl-cffi>=0.15.0",
     "tzdata>=2026.1",
     "structlog>=25.5.0",
     "bigleague[bloom]>=0.1.0",
 ]
-
-
 
 [project.scripts]
 harry = "main:main"
@@ -76,7 +73,7 @@ ignore = [
     "PLR0913", # too many arguments — common in command handlers
     "PLR0917", # Discord command callbacks naturally have several positional options
     "SIM108",  # ternary vs if/else — subjective
-    "PLC0415", # local imports — required for lazy loading Matplotlib/Pybaseball
+    "PLC0415", # local imports — required for lazy loading heavy modules
     "PLW0603", # global statement — used for lazy loading state
     "E402",    # module-level import — monkeypatching must happen early
     "PLR0912", # too many branches — unavoidable in some setup functions

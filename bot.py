@@ -99,7 +99,7 @@ class HarryBot(commands.Bot):
                 return False
             return True
 
-        self.tree.interaction_check = _owner_dm_check  # ty: ignore[invalid-assignment]
+        self.tree.interaction_check = _owner_dm_check
 
         # Global error handler: translate cooldown rejections into Harry's voice.
         # Cooldown fires BEFORE the command body, so interaction.response is
