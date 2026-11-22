@@ -31,13 +31,21 @@ log = logging.getLogger("harry")
 # must be a distinct model: retired IDs keep answering but silently route to
 # a newer one (gemini-3.7-flash -> gemini-3.8-flash, gemini-3.5-flash ->
 # gemini-3.6-flash), so listing one just retries the same model and quota.
+#
+# Ordered by what actually answers in production, fastest first. A junk stat
+# is one sentence, so a bigger model buys nothing. gemini-4-hydrogen is not
+# here: it timed out on every request at 15 s, so leading with it added 15 s
+# to every /junkstats call. 3.6 Flash answered in 4-6 s; 3.8 Flash timed out
+# or 503'd, so it is the last resort.
 MODEL_LADDER: tuple[str, ...] = (
-    "gemini-4-hydrogen",
-    "gemini-3.8-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
 )
 RETRYABLE_STATUS_CODES = frozenset({429, 503})
+# Per-rung timeout. About twice the slowest successful 3.6 Flash answer, so a
+# stuck rung costs 10 s rather than 15 s before the next one is tried.
+RUNG_TIMEOUT_S = 10.0
 
 SYSTEM_INSTRUCTION = (
     "You are Harry Doyle, the cynical voice of baseball. You are reading from the "
@@ -257,7 +265,7 @@ class AICommands(commands.Cog):
         selected_subject = random.choice(["player", "team"])  # noqa: S311
 
         async def _generate(model: str):
-            # Using the Async Client (aio) with a 15s timeout.
+            # Using the Async Client (aio) with a per-rung timeout.
             # This allows true cancellation of the network request if timed out.
             return await asyncio.wait_for(
                 client.aio.models.generate_content(
@@ -273,8 +281,8 @@ class AICommands(commands.Cog):
                         system_instruction=SYSTEM_INSTRUCTION,
                         # Gemini 3.x's thinking tokens draw from the same budget as
                         # max_output_tokens. LOW is the lowest level every ladder
-                        # rung accepts (4 Hydrogen and 3.8 Flash reject MINIMAL with a
-                        # 400), and the higher ceiling leaves room for the actual
+                        # rung accepts (3.8 Flash rejects MINIMAL with a 400), and
+                        # the higher ceiling leaves room for the actual
                         # sentence on top of it -- 110 alone left nothing but thinking
                         # tokens.
                         thinking_config=types.ThinkingConfig(
@@ -287,7 +295,7 @@ class AICommands(commands.Cog):
                         top_p=0.95,
                     ),
                 ),
-                timeout=15.0,
+                timeout=RUNG_TIMEOUT_S,
             )
 
         def _finish_reason(response) -> types.FinishReason | None:
