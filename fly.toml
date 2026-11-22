@@ -19,9 +19,9 @@ primary_region = 'iad'
   app = 'python main.py'
 
 [[vm]]
-  memory = '1gb'
+  memory = '512mb'
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 512
 
 [mounts]
   source = "harry_data_cache"
