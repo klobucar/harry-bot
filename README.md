@@ -87,7 +87,7 @@ uv run pytest
 - **[bouquet-bloom](https://github.com/klobucar/bouquet)** — Bloom filter behind bigleague's `bloom` extra; lets its on-disk cache skip lookups for data it knows it doesn't have
 - **Async all the way down** — data helpers are `async def` and awaited straight from the command handlers; only matplotlib rendering is pushed to a worker thread with `asyncio.to_thread()`
 - **`interaction.response.defer(thinking=True)`** — prevents Discord's 3-second interaction timeout
-- **[Gemini](https://ai.google.dev/)** — powers `/junkstats` via the `google-genai` SDK, walking a model ladder (3.8 Flash → 3.7 Flash → 3.5 Flash-Lite) when a model is unavailable
+- **[Gemini](https://ai.google.dev/)** — powers `/junkstats` via the `google-genai` SDK, walking a ladder of free-tier AI Studio models (3.8 Flash → 3.6 Flash → 3.5 Flash-Lite) when a model is rate-limited, overloaded, or slow
 - **[structlog](https://www.structlog.org/)** — structured logging over stdlib `logging`: JSON on Fly.io, colorized console locally (`LOG_LEVEL`, `HARRY_JSON_LOGS`)
 
 ## Caching & Memory
