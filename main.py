@@ -19,6 +19,7 @@ import sys
 
 from bot import HarryBot
 from logging_config import configure_logging, get_logger
+from metrics import start_metrics_server
 
 
 def main() -> None:
@@ -32,6 +33,8 @@ def main() -> None:
             "Export it before running: export DISCORD_TOKEN=your_bot_token"
         )
         sys.exit(1)
+
+    start_metrics_server()
 
     # log_handler=None: we own the root logging handler (configure_logging),
     # so discord.py must not install its own.

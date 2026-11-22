@@ -90,6 +90,7 @@ Angle brackets indicate required options. Square brackets indicate optional ones
 | `LOG_LEVEL` | Logging level. Defaults to `INFO`. |
 | `HARRY_JSON_LOGS` | Enables JSON logs when set. Fly.io enables them automatically. |
 | `BIGLEAGUE_CACHE_DIR` | Overrides the baseball data cache directory. Defaults to `~/.bigleague/cache`. |
+| `HARRY_METRICS_PORT` | Serves Prometheus metrics at `/metrics` on this port. `fly.toml` sets it to `9091`. Leave it unset locally. |
 
 ## Development
 
@@ -107,6 +108,16 @@ uv run pytest
 The included [Dockerfile](Dockerfile) and [`fly.toml`](fly.toml) run Harry as a background worker. For a new deployment, create a Fly app and set `app` in `fly.toml` to its name. Create a volume named `harry_data_cache` in the configured `primary_region`. Harry mounts it at `/data` and writes the bigleague cache to `/data/bigleague`. [Fly volume setup](https://fly.io/volumes/)
 
 Set `DISCORD_TOKEN` and any optional keys or IDs in the app's Fly secrets, then run `fly deploy` from the repository root.
+
+Fly collects Harry's Prometheus metrics every 15 seconds. You can query them in Fly's managed Grafana at [fly-metrics.net](https://fly-metrics.net/):
+
+| Metric | What it measures |
+| --- | --- |
+| `harry_command_duration_seconds` | Slash command wall time, by `command` and `outcome` (`ok`, `error`, or `cooldown`). |
+| `harry_junkstats_attempts_total` | `/junkstats` Gemini calls, by `model` and `result` (`ok`, `timeout`, or an HTTP status such as `429`). |
+| `process_resident_memory_bytes` | Harry's memory use. |
+
+[Fly metrics docs](https://fly.io/docs/monitoring/metrics/)
 
 ## License
 
