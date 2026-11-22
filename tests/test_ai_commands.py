@@ -333,3 +333,11 @@ def test_model_ladder_has_no_retired_or_duplicate_rungs():
     assert not rerouted.intersection(MODEL_LADDER)
     assert len(set(MODEL_LADDER)) == len(MODEL_LADDER)
     assert len(MODEL_LADDER) >= 2
+
+
+def test_model_ladder_worst_case_stays_bounded():
+    """Every rung timing out is the slowest /junkstats can be. Keep that
+    under 30 s so adding a rung or raising the timeout is a deliberate call."""
+    from commands.ai_commands import MODEL_LADDER, RUNG_TIMEOUT_S
+
+    assert RUNG_TIMEOUT_S * len(MODEL_LADDER) <= 30.0
