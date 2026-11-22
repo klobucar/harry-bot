@@ -18,6 +18,7 @@ from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 
+from metrics import JUNKSTATS_ATTEMPTS
 from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
@@ -309,15 +310,23 @@ class AICommands(commands.Cog):
             for rung, model in enumerate(MODEL_LADDER):
                 is_last = rung == len(MODEL_LADDER) - 1
                 try:
-                    return await _generate(model), model
+                    response = await _generate(model)
                 except APIError as exc:
+                    JUNKSTATS_ATTEMPTS.labels(model=model, result=str(exc.code)).inc()
                     if exc.code not in RETRYABLE_STATUS_CODES or is_last:
                         raise
                     reason = str(exc.code)
                 except TimeoutError:
+                    JUNKSTATS_ATTEMPTS.labels(model=model, result="timeout").inc()
                     if is_last:
                         raise
                     reason = "timeout"
+                except Exception:
+                    JUNKSTATS_ATTEMPTS.labels(model=model, result="error").inc()
+                    raise
+                else:
+                    JUNKSTATS_ATTEMPTS.labels(model=model, result="ok").inc()
+                    return response, model
                 log.warning(
                     "/junkstats got %s on %s, stepping down to %s",
                     reason,

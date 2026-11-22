@@ -16,6 +16,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from logging_config import current_rss_mb, get_logger
+from metrics import COMMAND_DURATION
 from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
@@ -31,6 +32,13 @@ discord_logger.setLevel(logging.WARNING)
 _OWNER_ONLY_DM_MSG = "Juuust a bit outside my jurisdiction, pal. I only take calls from the owner."
 
 
+def _command_name(
+    interaction: discord.Interaction,
+    command: app_commands.Command | app_commands.ContextMenu | None = None,
+) -> str | None:
+    return getattr(command or interaction.command, "qualified_name", None)
+
+
 def _command_fields(
     interaction: discord.Interaction,
     command: app_commands.Command | app_commands.ContextMenu | None = None,
@@ -41,10 +49,8 @@ def _command_fields(
     is best-effort current RSS (omitted off-Linux). Safe to call from any
     command outcome path.
     """
-    cmd = command or interaction.command
-    name = getattr(cmd, "qualified_name", None)
     fields: dict[str, object] = {
-        "command": name,
+        "command": _command_name(interaction, command),
         "user_id": interaction.user.id if interaction.user else None,
         "guild_id": interaction.guild_id,
     }
@@ -55,6 +61,25 @@ def _command_fields(
     if rss is not None:
         fields["rss_mb"] = rss
     return fields
+
+
+def _record_duration(
+    interaction: discord.Interaction,
+    outcome: str,
+    command: app_commands.Command | app_commands.ContextMenu | None = None,
+) -> None:
+    """Observe the command's wall time in the duration histogram.
+
+    `outcome` is "ok", "error" or "cooldown". A command that catches its own
+    exception and replies with an error message still counts as "ok", the
+    same as its command.done log line.
+    """
+    t0 = interaction.extras.get("t0")
+    if t0 is None:
+        return
+    COMMAND_DURATION.labels(
+        command=_command_name(interaction, command) or "unknown", outcome=outcome
+    ).observe(time.perf_counter() - t0)
 
 
 class HarryBot(commands.Bot):
@@ -110,9 +135,11 @@ class HarryBot(commands.Bot):
             error: app_commands.AppCommandError,
         ) -> None:
             if isinstance(error, app_commands.CommandOnCooldown):
+                _record_duration(interaction, "cooldown")
                 retry = max(1, int(error.retry_after))
                 msg = harry_error(f"Slow down, pal — try again in {retry}s.")
             else:
+                _record_duration(interaction, "error")
                 # CommandInvokeError wraps the real exception in .original.
                 inner = getattr(error, "original", error)
                 log.error("Unhandled app command error", exc_info=inner)
@@ -135,6 +162,7 @@ class HarryBot(commands.Bot):
         command: app_commands.Command | app_commands.ContextMenu,
     ) -> None:
         """Emit a structured latency event after a slash command succeeds."""
+        _record_duration(interaction, "ok", command)
         slog.info("command.done", **_command_fields(interaction, command))
 
     async def setup_hook(self) -> None:
