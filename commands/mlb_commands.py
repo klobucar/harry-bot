@@ -6,7 +6,6 @@ Commands: /roster, /injury, /transactions, /livescore, /nextgame
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import discord
@@ -45,7 +44,7 @@ class MLBCommands(commands.Cog):
         log.info("/roster: %s", team_up)
 
         try:
-            players: list[dict] = await asyncio.to_thread(fetch_roster, team_up)
+            players: list[dict] = await fetch_roster(team_up)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -89,7 +88,7 @@ class MLBCommands(commands.Cog):
         log.info("/injury: %s", team_up)
 
         try:
-            players: list[dict] = await asyncio.to_thread(fetch_injuries, team_up)
+            players: list[dict] = await fetch_injuries(team_up)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -129,7 +128,7 @@ class MLBCommands(commands.Cog):
         log.info("/transactions: %s last %dd", team_up, days)
 
         try:
-            moves: list[dict] = await asyncio.to_thread(fetch_transactions, team_up, days)
+            moves: list[dict] = await fetch_transactions(team_up, days)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -159,7 +158,7 @@ class MLBCommands(commands.Cog):
         log.info("/livescore: %s", team_up)
 
         try:
-            games: list[dict] = await asyncio.to_thread(fetch_live_scores, team_up)
+            games: list[dict] = await fetch_live_scores(team_up)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -195,7 +194,7 @@ class MLBCommands(commands.Cog):
         log.info("/nextgame: %s", team_up)
 
         try:
-            game: dict = await asyncio.to_thread(fetch_next_game, team_up)
+            game: dict = await fetch_next_game(team_up)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return

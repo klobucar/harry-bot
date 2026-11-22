@@ -26,7 +26,6 @@ env/
 
 # ── Caches ────────────────────────────────────────────────────────────────────
 .cache/
-.pybaseball_cache/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
@@ -69,3 +68,7 @@ tmp/
 minimal.toml
 output.dot
 output.svg
+
+# ── AI agent local config ─────────────────────────────────────────────────────
+.claude/settings.local.json
+.codex/

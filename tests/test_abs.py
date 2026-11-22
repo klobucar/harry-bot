@@ -11,6 +11,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
+import polars as pl
 import pytest
 
 import abs as abs_mod
@@ -99,19 +100,31 @@ _TEAM_SUMMARY_ROWS = [
 ]
 
 
-def _fake_fetch(year: int, role: str) -> list[dict]:
-    return {
-        abs_mod.ROLE_BATTER: _BATTER_ROWS,
-        abs_mod.ROLE_PITCHER: _PITCHER_ROWS,
-        abs_mod.ROLE_CATCHER: _CATCHER_ROWS,
-        abs_mod.ROLE_TEAM_SUMMARY: _TEAM_SUMMARY_ROWS,
-    }[role]
+_ROLE_ROWS: dict[str, list[dict]] = {
+    abs_mod.ROLE_BATTER: _BATTER_ROWS,
+    abs_mod.ROLE_PITCHER: _PITCHER_ROWS,
+    abs_mod.ROLE_CATCHER: _CATCHER_ROWS,
+    abs_mod.ROLE_TEAM_SUMMARY: _TEAM_SUMMARY_ROWS,
+}
+
+
+async def _fake_challenges(year: int, role: str, **kwargs) -> pl.DataFrame:
+    rows = _ROLE_ROWS[role]
+    return pl.DataFrame(rows) if rows else pl.DataFrame()
 
 
 @pytest.fixture(autouse=True)
-def patch_csv_fetch():
-    with patch("abs._fetch_csv", side_effect=_fake_fetch):
+def patch_challenges():
+    # bigleague.abs.challenges is the single network boundary every public
+    # ABS function (and the async embed builders) funnels through.
+    with patch("bigleague.abs.challenges", side_effect=_fake_challenges):
         yield
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    """Run anyio tests on asyncio only (trio is not installed)."""
+    return "asyncio"
 
 
 # ---------------------------------------------------------------------------
@@ -130,20 +143,22 @@ class TestNormalizeTeam:
         assert abs_mod.normalize_team("nyy") == "NYY"
 
 
+@pytest.mark.anyio
 class TestFetchTeamSummary:
-    def test_returns_team_row(self):
-        row = abs_mod.fetch_team_summary("DET", 2026)
+    async def test_returns_team_row(self):
+        row = await abs_mod.fetch_team_summary("DET", 2026)
         assert row["team_abbr"] == "DET"
         assert row["n_challenges_off"] == 41
 
-    def test_unknown_team_raises(self):
+    async def test_unknown_team_raises(self):
         with pytest.raises(ValueError, match="No ABS data"):
-            abs_mod.fetch_team_summary("XYZ", 2026)
+            await abs_mod.fetch_team_summary("XYZ", 2026)
 
 
+@pytest.mark.anyio
 class TestFetchTeamTopChallengers:
-    def test_returns_team_only_sorted(self):
-        top = abs_mod.fetch_team_top_challengers("DET", 2026, limit=10)
+    async def test_returns_team_only_sorted(self):
+        top = await abs_mod.fetch_team_top_challengers("DET", 2026, limit=10)
         names = [r["entity_name"] for r in top]
         # Catcher with 21 chal beats batter with 6, then pitcher 2, then 1.
         assert names == ["Dillon Dingler", "Spencer Torkelson", "Tarik Skubal", "Singleton Sample"]
@@ -151,44 +166,46 @@ class TestFetchTeamTopChallengers:
         roles = [r["role"] for r in top]
         assert roles == ["catcher", "batter", "pitcher", "batter"]
 
-    def test_respects_limit(self):
-        top = abs_mod.fetch_team_top_challengers("DET", 2026, limit=2)
+    async def test_respects_limit(self):
+        top = await abs_mod.fetch_team_top_challengers("DET", 2026, limit=2)
         assert len(top) == 2
 
-    def test_filters_other_teams(self):
-        top = abs_mod.fetch_team_top_challengers("NYY", 2026)
+    async def test_filters_other_teams(self):
+        top = await abs_mod.fetch_team_top_challengers("NYY", 2026)
         assert all(r["team_abbr"] == "NYY" for r in top)
 
 
+@pytest.mark.anyio
 class TestFetchPlayer:
-    def test_finds_in_batter_feed(self):
-        out = abs_mod.fetch_player("Aaron", "Judge", 2026)
+    async def test_finds_in_batter_feed(self):
+        out = await abs_mod.fetch_player("Aaron", "Judge", 2026)
         assert out["name"] == "Aaron Judge"
         assert out["team_abbr"] == "NYY"
         assert out["totals"]["n_challenges"] == 4
         assert len(out["roles"]) == 1
         assert out["roles"][0]["role"] == "batter"
 
-    def test_unknown_player_raises(self):
+    async def test_unknown_player_raises(self):
         with pytest.raises(ValueError, match="No ABS challenge data"):
-            abs_mod.fetch_player("Mickey", "Mouse", 2026)
+            await abs_mod.fetch_player("Mickey", "Mouse", 2026)
 
-    def test_case_insensitive(self):
-        out = abs_mod.fetch_player("aaron", "JUDGE", 2026)
+    async def test_case_insensitive(self):
+        out = await abs_mod.fetch_player("aaron", "JUDGE", 2026)
         assert out["name"] == "Aaron Judge"
 
 
+@pytest.mark.anyio
 class TestFetchLeagueLeaders:
-    def test_filters_by_min_challenges(self):
-        out = abs_mod.fetch_league_leaders(2026, limit=10, min_challenges=3)
+    async def test_filters_by_min_challenges(self):
+        out = await abs_mod.fetch_league_leaders(2026, limit=10, min_challenges=3)
         names = [r["entity_name"] for r in out]
         # "Singleton Sample" has 1 challenge — below the floor — should be cut.
         # "Tarik Skubal" has 2 challenges — also cut at min=3.
         assert "Singleton Sample" not in names
         assert "Tarik Skubal" not in names
 
-    def test_sorts_by_rate_then_count(self):
-        out = abs_mod.fetch_league_leaders(2026, limit=10, min_challenges=1)
+    async def test_sorts_by_rate_then_count(self):
+        out = await abs_mod.fetch_league_leaders(2026, limit=10, min_challenges=1)
         # Top 3 all 100%: Singleton (1 chal), Skubal (2), Dingler is 90%.
         # Sort breaks ties on n_challenges desc → Skubal before Singleton.
         assert out[0]["entity_name"] == "Tarik Skubal"
@@ -200,9 +217,10 @@ class TestFetchLeagueLeaders:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.anyio
 class TestEmbedBuilders:
-    def test_team_embed_has_summary_and_top(self):
-        embed = _build_team_embed("DET", 2026)
+    async def test_team_embed_has_summary_and_top(self):
+        embed = await _build_team_embed("DET", 2026)
         assert "Detroit Tigers" in (embed.title or "")
         assert "ABS" in (embed.title or "")
         # Total challenges = off + def
@@ -216,15 +234,15 @@ class TestEmbedBuilders:
         top_field = next(f for f in embed.fields if "Top" in (f.name or ""))
         assert "Dillon Dingler" in (top_field.value or "")
 
-    def test_player_embed_has_stats(self):
-        embed = _build_player_embed("Aaron", "Judge", 2026)
+    async def test_player_embed_has_stats(self):
+        embed = await _build_player_embed("Aaron", "Judge", 2026)
         assert "Aaron Judge" in (embed.title or "")
         # 4 challenges, 75% success
         assert "4 challenges" in (embed.description or "")
         assert "75.0%" in (embed.description or "")
 
-    def test_league_embed_lists_leaders(self):
-        embed = _build_league_embed(2026)
+    async def test_league_embed_lists_leaders(self):
+        embed = await _build_league_embed(2026)
         # Single description blob; just verify a couple of expected names.
         text = embed.description or ""
         assert "Tarik Skubal" in text or "Dillon Dingler" in text

@@ -4,7 +4,6 @@ commands/zone_commands.py — /strikezone and /battedzone slash commands.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -63,16 +62,14 @@ class ZoneCommands(commands.Cog):
         log.info("/strikezone called: %s (%d)", player_name, year)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            buf: BytesIO = await asyncio.to_thread(fetch_pitcher_zone, player_id, year, player_name)
+            buf: BytesIO = await fetch_pitcher_zone(player_id, year, player_name)
 
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
@@ -89,7 +86,7 @@ class ZoneCommands(commands.Cog):
             color=discord.Color.from_rgb(0, 40, 104),
         )
         embed.set_image(url="attachment://strikezone.png")
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
 
         await interaction.followup.send(embed=embed, file=file)
         log.info("/strikezone completed for %s (%d)", player_name, year)
@@ -128,16 +125,14 @@ class ZoneCommands(commands.Cog):
         log.info("/battedzone called: %s (%d)", player_name, year)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            buf: BytesIO = await asyncio.to_thread(fetch_batter_zone, player_id, year, player_name)
+            buf: BytesIO = await fetch_batter_zone(player_id, year, player_name)
 
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
@@ -157,7 +152,7 @@ class ZoneCommands(commands.Cog):
             color=discord.Color.from_rgb(34, 139, 34),
         )
         embed.set_image(url="attachment://battedzone.png")
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
 
         await interaction.followup.send(embed=embed, file=file)
         log.info("/battedzone completed for %s (%d)", player_name, year)

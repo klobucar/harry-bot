@@ -63,3 +63,52 @@ class TestStatsCommands:
         interaction.followup.send.assert_called_once()
         args, _ = interaction.followup.send.call_args
         assert "not found" in args[0].lower()
+
+    @patch("commands.stats_commands.fetch_player_stats")
+    async def test_stats_renders_both_roles_for_two_way_player(self, mock_fetch, bot, interaction):
+        mock_fetch.return_value = {
+            "type": "two-way",
+            "roles": {
+                "pitcher": {"team": "LAD", "stats": {"ERA": "3.000"}},
+                "batter": {"team": "LAD", "stats": {"OPS": "1.000"}},
+            },
+        }
+
+        cog = StatsCommands(bot)
+        await cog.stats.callback(cog, interaction, "Shohei", "Ohtani", 2026)  # type: ignore
+
+        _, kwargs = interaction.followup.send.call_args
+        embed = kwargs["embed"]
+        assert "Two-Way" in embed.description
+        assert {field.name for field in embed.fields} == {"Pitcher · ERA", "Batter · OPS"}
+
+    @patch("commands.stats_commands.fetch_player_stats")
+    async def test_compare_uses_shared_batter_role_for_two_way_player(
+        self, mock_fetch, bot, interaction
+    ):
+        mock_fetch.side_effect = [
+            {
+                "type": "two-way",
+                "roles": {
+                    "pitcher": {"team": "LAD", "stats": {"ERA": "3.000"}},
+                    "batter": {"team": "LAD", "stats": {"OPS": "1.000"}},
+                },
+            },
+            {"type": "batter", "team": "NYY", "stats": {"OPS": ".950"}},
+        ]
+
+        cog = StatsCommands(bot)
+        await cog.compare.callback(
+            cog,  # type: ignore
+            interaction,  # type: ignore
+            p1_first="Shohei",
+            p1_last="Ohtani",
+            p2_first="Aaron",
+            p2_last="Judge",
+            year=2026,
+        )
+
+        _, kwargs = interaction.followup.send.call_args
+        embed = kwargs["embed"]
+        assert "Batter" in embed.description
+        assert [field.name for field in embed.fields] == ["OPS"]

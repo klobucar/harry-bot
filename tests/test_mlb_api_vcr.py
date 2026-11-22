@@ -13,6 +13,7 @@ To run in offline/replay mode (default):
 
 from __future__ import annotations
 
+import bigleague.http
 import pytest
 
 from mlb_api import (
@@ -24,10 +25,24 @@ from mlb_api import (
 )
 
 
+@pytest.fixture
+def anyio_backend() -> str:
+    """Run anyio tests on asyncio only (avoid requiring trio)."""
+    return "asyncio"
+
+
+@pytest.fixture
+async def fresh_client() -> None:
+    """Reset bigleague's module-cached httpx.AsyncClient so a new client is
+    created under the active VCR cassette (the cached one may predate it)."""
+    await bigleague.http.close_client()
+
+
+@pytest.mark.anyio
 @pytest.mark.vcr
-def test_fetch_roster_returns_players() -> None:
+async def test_fetch_roster_returns_players(fresh_client: None) -> None:
     """Roster endpoint returns a non-empty list with expected fields."""
-    result = fetch_roster("DET")
+    result = await fetch_roster("DET")
     assert isinstance(result, list)
     assert len(result) > 0
     for player in result:
@@ -36,10 +51,11 @@ def test_fetch_roster_returns_players() -> None:
         assert isinstance(player["name"], str)
 
 
+@pytest.mark.anyio
 @pytest.mark.vcr
-def test_fetch_injuries_returns_list() -> None:
+async def test_fetch_injuries_returns_list(fresh_client: None) -> None:
     """IL endpoint returns a list (may be empty if no one is injured)."""
-    result = fetch_injuries("DET")
+    result = await fetch_injuries("DET")
     assert isinstance(result, list)
     for p in result:
         assert "name" in p
@@ -47,10 +63,11 @@ def test_fetch_injuries_returns_list() -> None:
         assert "note" in p
 
 
+@pytest.mark.anyio
 @pytest.mark.vcr
-def test_fetch_transactions_returns_moves() -> None:
+async def test_fetch_transactions_returns_moves(fresh_client: None) -> None:
     """Transactions endpoint returns recent roster moves with date + desc."""
-    result = fetch_transactions("DET", days=14)
+    result = await fetch_transactions("DET", days=14)
     assert isinstance(result, list)
     for move in result:
         assert "date" in move
@@ -58,10 +75,11 @@ def test_fetch_transactions_returns_moves() -> None:
         assert len(move["date"]) == 10  # YYYY-MM-DD
 
 
+@pytest.mark.anyio
 @pytest.mark.vcr
-def test_fetch_live_scores_game_structure() -> None:
+async def test_fetch_live_scores_game_structure(fresh_client: None) -> None:
     """Live scores response contains correctly structured game dicts."""
-    result = fetch_live_scores("DET")
+    result = await fetch_live_scores("DET")
     assert isinstance(result, list)
     assert len(result) >= 1
     game = result[0]
@@ -72,10 +90,11 @@ def test_fetch_live_scores_game_structure() -> None:
     assert "inning" in game
 
 
+@pytest.mark.anyio
 @pytest.mark.vcr
-def test_fetch_next_game_returns_game() -> None:
+async def test_fetch_next_game_returns_game(fresh_client: None) -> None:
     """Next game endpoint returns a dict with date, teams, and probable pitchers."""
-    result = fetch_next_game("DET")
+    result = await fetch_next_game("DET")
     assert isinstance(result, dict)
     assert "date" in result
     assert "home_team" in result

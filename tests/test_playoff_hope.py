@@ -1,23 +1,25 @@
 """
 tests/test_playoff_hope.py — Tests for the playoff_hope helper and /hope command.
 
-Network calls (curl_cffi) are mocked. The cache is reset between tests so
-each one starts cold.
+The FanGraphs fetch/parse now lives in ``bigleague`` (async, polars). This
+module keeps only Discord-presentation logic, so the data layer is mocked at
+the ``playoff_hope.playoff_odds`` / ``playoff_hope.recent_results`` boundary.
+The module-level cache is reset between tests so each one starts cold.
 """
 
 from __future__ import annotations
 
-import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
+import polars as pl
 import pytest
 
 import playoff_hope
 from commands.info_commands import InfoCommands
 from playoff_hope import (
-    _parse_odds,
+    _pct,
     _resolve_abbr,
     fetch_team_hope,
     hex_to_rgb,
@@ -25,67 +27,57 @@ from playoff_hope import (
 )
 
 
-def _row(abbr: str, short: str, w: int, loss: int, **end_overrides) -> dict:
-    """Build a minimal FG playoff-odds row matching the real schema."""
-    end = {
-        "ExpW": w + 50.0,
-        "ExpL": loss + 50.0,
-        "rosW": 0.5,
-        "divTitle": 0.10,
-        "div2Title": 0.05,
-        "wcTitle": 0.05,
-        "poffTitle": 0.20,
-        "wcWin": 0.10,
-        "dsWin": 0.05,
-        "csWin": 0.02,
-        "wsWin": 0.01,
-    }
-    end.update(end_overrides)
-    return {
-        "teamId": 0,
+@pytest.fixture
+def anyio_backend() -> str:
+    """Run anyio tests on asyncio only (trio is not installed)."""
+    return "asyncio"
+
+
+def _odds_row(abbr: str, short: str, w: int, loss: int, **overrides) -> dict:
+    """Build a minimal playoff-odds frame row matching bigleague's schema.
+
+    Probabilities are RAW FRACTIONS in [0, 1]; fetch_team_hope scales them to
+    percent via _pct.
+    """
+    row = {
         "abbName": abbr,
         "shortName": short,
-        "league": "AL",
-        "division": "C",
         "W": w,
         "L": loss,
-        "Wpct": w / (w + loss) if (w + loss) else 0.0,
-        "GB": 0,
-        "WCGB": 0,
-        "dateEnd": None,
-        "endData": end,
-        "deltaData": None,
+        "Wpct": (w / (w + loss)) if (w + loss) else 0.0,
+        "GB": 0.0,
+        "exp_w": w + 50.0,
+        "exp_l": loss + 50.0,
+        "ros_pct": 0.5,
+        "playoff_pct": 0.20,
+        "division_pct": 0.10,
+        "wildcard_pct": 0.05,
+        "ws_pct": 0.01,
     }
+    row.update(overrides)
+    return row
 
 
 _FG_ROWS: list[dict] = [
-    _row("DET", "Tigers", 18, 18, poffTitle=0.6187, divTitle=0.4658, wcTitle=0.1529, wsWin=0.0431),
-    _row("NYY", "Yankees", 24, 11, poffTitle=0.9867, divTitle=0.85, wcTitle=0.10, wsWin=0.20),
-    _row("ATH", "Athletics", 18, 16, poffTitle=0.4135),
-    _row("BOS", "Red Sox", 14, 21, poffTitle=0.2821),
-    _row("LAA", "Angels", 13, 23, poffTitle=0.0178),
+    _odds_row(
+        "DET",
+        "Tigers",
+        18,
+        18,
+        playoff_pct=0.6187,
+        division_pct=0.4658,
+        wildcard_pct=0.1529,
+        ws_pct=0.0431,
+    ),
+    _odds_row("NYY", "Yankees", 24, 11, playoff_pct=0.9867, division_pct=0.85, ws_pct=0.20),
+    _odds_row("ATH", "Athletics", 18, 16, playoff_pct=0.4135),
+    _odds_row("BOS", "Red Sox", 14, 21, playoff_pct=0.2821),
+    _odds_row("LAA", "Angels", 13, 23, playoff_pct=0.0178),
 ]
 
 
-def _fake_html(rows: list[dict]) -> str:
-    """Wrap FG rows in a minimal Next.js page so _parse_odds finds them."""
-    payload = {
-        "props": {
-            "pageProps": {
-                "dehydratedState": {
-                    "queries": [
-                        {"queryHash": '["playoff-odds-controls"]', "state": {"data": [1, 2, 3]}},
-                        {
-                            "queryHash": '["playoff-odds","2026-05-05","","fg","div"]',
-                            "state": {"data": rows},
-                        },
-                    ]
-                }
-            }
-        }
-    }
-    encoded = json.dumps(payload)
-    return f'<html><body><script id="__NEXT_DATA__" type="application/json">{encoded}</script></body></html>'
+def _odds_frame(rows: list[dict] | None = None) -> pl.DataFrame:
+    return pl.DataFrame(rows if rows is not None else _FG_ROWS)
 
 
 @pytest.fixture(autouse=True)
@@ -96,16 +88,9 @@ def _clear_cache():
     playoff_hope._cache.clear()
 
 
-@pytest.fixture
-def mock_fg(monkeypatch):
-    """Patch _fetch_html and the MLB Stats API call so fetch_team_hope is hermetic."""
-
-    def _fake(_url):
-        return _fake_html(_FG_ROWS)
-
-    monkeypatch.setattr(playoff_hope, "_fetch_html", _fake)
-    monkeypatch.setattr(playoff_hope, "fetch_recent_results", lambda *_a, **_kw: [])
-    return _fake
+# ---------------------------------------------------------------------------
+# hex_to_rgb
+# ---------------------------------------------------------------------------
 
 
 class TestHexToRgb:
@@ -120,6 +105,30 @@ class TestHexToRgb:
 
     def test_empty_returns_navy_fallback(self) -> None:
         assert hex_to_rgb("") == (0, 40, 104)
+
+
+# ---------------------------------------------------------------------------
+# _pct
+# ---------------------------------------------------------------------------
+
+
+class TestPct:
+    def test_fraction_scales_to_percent(self) -> None:
+        assert _pct(0.6187) == pytest.approx(61.87)
+
+    def test_zero_stays_zero(self) -> None:
+        assert _pct(0.0) == 0.0
+
+    def test_none_returns_zero(self) -> None:
+        assert _pct(None) == 0.0
+
+    def test_bad_value_returns_zero(self) -> None:
+        assert _pct("not a number") == 0.0
+
+
+# ---------------------------------------------------------------------------
+# render_last_n_strip
+# ---------------------------------------------------------------------------
 
 
 class TestRenderLastNStrip:
@@ -160,23 +169,14 @@ class TestRenderLastNStrip:
         assert out == "🟩🔴🟢🟥"
 
 
-class TestParseOdds:
-    def test_extracts_rows_from_next_data(self) -> None:
-        rows = _parse_odds(_fake_html(_FG_ROWS))
-        assert set(rows.keys()) == {"DET", "NYY", "ATH", "BOS", "LAA"}
-        assert rows["DET"]["W"] == 18
-
-    def test_missing_next_data_returns_empty(self) -> None:
-        assert _parse_odds("<html>no next data</html>") == {}
-
-    def test_malformed_json_returns_empty(self) -> None:
-        bad = '<script id="__NEXT_DATA__" type="application/json">{not json}</script>'
-        assert _parse_odds(bad) == {}
+# ---------------------------------------------------------------------------
+# _resolve_abbr
+# ---------------------------------------------------------------------------
 
 
 class TestResolveAbbr:
     def setup_method(self) -> None:
-        self.rows = {row["abbName"]: row for row in _FG_ROWS}
+        self.rows = {row["abbName"]: {"shortName": row["shortName"]} for row in _FG_ROWS}
 
     def test_exact_abbr(self) -> None:
         assert _resolve_abbr("DET", self.rows) == "DET"
@@ -190,6 +190,10 @@ class TestResolveAbbr:
     def test_unique_substring_match(self) -> None:
         assert _resolve_abbr("red sox", self.rows) == "BOS"
 
+    def test_ambiguous_substring_returns_none(self) -> None:
+        # "a" appears in several shortNames (Athletics, Angels, ...).
+        assert _resolve_abbr("a", self.rows) is None
+
     def test_unknown_returns_none(self) -> None:
         assert _resolve_abbr("XYZ", self.rows) is None
 
@@ -197,11 +201,24 @@ class TestResolveAbbr:
         assert _resolve_abbr("", self.rows) is None
 
 
+# ---------------------------------------------------------------------------
+# fetch_team_hope (mocked at the bigleague boundary)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
 class TestFetchTeamHope:
-    def test_returns_full_dict_for_tigers(self, mock_fg) -> None:
-        data = fetch_team_hope("DET")
+    async def test_returns_full_dict_for_tigers(self) -> None:
+        playoff_hope._cache.clear()
+        with (
+            patch("playoff_hope.playoff_odds", new=AsyncMock(return_value=_odds_frame())),
+            patch("playoff_hope.recent_results", new=AsyncMock(return_value=[])),
+        ):
+            data = await fetch_team_hope("DET")
+
         assert data["abbr"] == "DET"
         assert data["name"] == "Tigers"
+        assert data["slug"] == "tigers"
         assert data["wins"] == 18
         assert data["losses"] == 18
         assert data["win_pct"] == pytest.approx(0.5)
@@ -211,28 +228,67 @@ class TestFetchTeamHope:
         assert data["ws_pct"] == pytest.approx(4.31)
         assert data["primary_color"] == "#0C2340"
         assert data["url"] == "https://mlbplayoffhope.com/#tigers"
+        assert data["last_results"] == []
 
-    def test_oak_resolves_to_ath(self, mock_fg) -> None:
-        data = fetch_team_hope("OAK")
+    async def test_oak_resolves_to_ath(self) -> None:
+        playoff_hope._cache.clear()
+        with (
+            patch("playoff_hope.playoff_odds", new=AsyncMock(return_value=_odds_frame())),
+            patch("playoff_hope.recent_results", new=AsyncMock(return_value=[])),
+        ):
+            data = await fetch_team_hope("OAK")
+
         assert data["abbr"] == "ATH"
+        assert data["slug"] == "athletics"
         assert data["url"] == "https://mlbplayoffhope.com/#athletics"
 
-    def test_unknown_team_raises(self, mock_fg) -> None:
-        with pytest.raises(ValueError, match="Unknown team"):
-            fetch_team_hope("XYZ")
+    async def test_recent_results_failure_yields_empty_last_results(self) -> None:
+        playoff_hope._cache.clear()
+        with (
+            patch("playoff_hope.playoff_odds", new=AsyncMock(return_value=_odds_frame())),
+            patch("playoff_hope.recent_results", new=AsyncMock(side_effect=RuntimeError("boom"))),
+        ):
+            data = await fetch_team_hope("DET")
 
-    def test_cache_avoids_duplicate_fetches(self, monkeypatch) -> None:
-        calls = {"n": 0}
+        assert data["last_results"] == []
 
-        def _counted(_url):
-            calls["n"] += 1
-            return _fake_html(_FG_ROWS)
+    async def test_recent_results_passed_through(self) -> None:
+        playoff_hope._cache.clear()
+        games = [{"is_home": True, "result": "W"}, {"is_home": False, "result": "L"}]
+        with (
+            patch("playoff_hope.playoff_odds", new=AsyncMock(return_value=_odds_frame())),
+            patch("playoff_hope.recent_results", new=AsyncMock(return_value=games)),
+        ):
+            data = await fetch_team_hope("DET")
 
-        monkeypatch.setattr(playoff_hope, "_fetch_html", _counted)
-        fetch_team_hope("DET")
-        fetch_team_hope("NYY")
-        fetch_team_hope("BOS")
-        assert calls["n"] == 1
+        assert data["last_results"] == games
+
+    async def test_unknown_team_raises(self) -> None:
+        playoff_hope._cache.clear()
+        with (
+            patch("playoff_hope.playoff_odds", new=AsyncMock(return_value=_odds_frame())),
+            patch("playoff_hope.recent_results", new=AsyncMock(return_value=[])),
+            pytest.raises(ValueError, match="Unknown team"),
+        ):
+            await fetch_team_hope("XYZ")
+
+    async def test_cache_avoids_duplicate_fetches(self) -> None:
+        playoff_hope._cache.clear()
+        odds = AsyncMock(return_value=_odds_frame())
+        with (
+            patch("playoff_hope.playoff_odds", new=odds),
+            patch("playoff_hope.recent_results", new=AsyncMock(return_value=[])),
+        ):
+            await fetch_team_hope("DET")
+            await fetch_team_hope("NYY")
+            await fetch_team_hope("BOS")
+
+        assert odds.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# /hope command
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
