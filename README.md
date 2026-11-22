@@ -94,7 +94,7 @@ uv run pytest
 
 - **On-disk cache**: bigleague keeps Statcast pulls as parquet (plus the Bloom filter and the player register) under `~/.bigleague/cache`. Set `BIGLEAGUE_CACHE_DIR` to move it — `fly.toml` points it at the mounted volume so the cache survives deploys.
 - **Polars instead of pandas**: frames are Arrow-backed polars end to end; pandas, pyarrow, and pybaseball are no longer installed.
-- **Headless Plotting**: The `Agg` backend is forced globally in `main.py` to prevent loading heavy GUI frameworks (Tkinter/Qt).
+- **Lazy, headless plotting**: bigleague imports matplotlib on the first plot rather than at startup, and renders straight to PNG without pyplot or a GUI backend.
 - **Lean Discord Client**: Internal message and member caching is disabled in `HarryBot` to prevent memory bloat over time.
 
 ## Harry's Persona

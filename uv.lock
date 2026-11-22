@@ -204,7 +204,7 @@ wheels = [
 
 [[package]]
 name = "bigleague"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "curl-cffi" },
@@ -213,9 +213,9 @@ dependencies = [
     { name = "numpy" },
     { name = "polars" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/54/19b486aa7d503d968874cbd6bb550298ac741e5263644b7d39e3c7dad759/bigleague-0.1.0.tar.gz", hash = "sha256:0bfa60af69c6579529d107cb6ce4396d3b69c790caa38e7ea6554e91fbe27c92", size = 65685, upload-time = "2026-11-22T00:43:29.027Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/14/b0dfe1101e0fb4bacc428ab306df9c83a582c93dd714a642da8f7a6e47c2/bigleague-0.1.1.tar.gz", hash = "sha256:7d19fe8898c97a1072e80de18cb1cc5ac7f7fe8cbad2ec035248870bc5a970cc", size = 77252, upload-time = "2026-11-22T01:41:43.373Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/e7/0050fd7b87ea11167f1ae60c5823c9a7dc04a4f2845540d75f27c38e1b03/bigleague-0.1.0-py3-none-any.whl", hash = "sha256:3f9a2e10e2d7c14c1c7563de9d8a808214c0295ff28979419f0b016035f49420", size = 46409, upload-time = "2026-11-22T00:43:27.602Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/d1/e88842660a9e20ed5aaae60ef16ddfddc5822c1c2dd7e10012a9ff0c1869/bigleague-0.1.1-py3-none-any.whl", hash = "sha256:8fbce7a1f0e02862a3e23524ce3352c0a85ba77c15b22fb80b433ad61a6e53b5", size = 51749, upload-time = "2026-11-22T01:41:41.83Z" },
 ]
 
 [package.optional-dependencies]
@@ -834,7 +834,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bigleague", extras = ["bloom"], specifier = ">=0.1.0" },
+    { name = "bigleague", extras = ["bloom"], specifier = ">=0.1.1" },
     { name = "discord-py", specifier = ">=2.7.1" },
     { name = "google-genai", specifier = ">=1.67.0" },
     { name = "structlog", specifier = ">=25.5.0" },
