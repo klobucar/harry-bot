@@ -55,9 +55,10 @@ class MatchupCommands(commands.Cog):
         Resolve both player IDs concurrently.
         Sends an error followup and returns None if either lookup fails.
         """
-        pitcher_id_task = asyncio.to_thread(resolve_player_id, pitcher_first, pitcher_last)
-        batter_id_task = asyncio.to_thread(resolve_player_id, batter_first, batter_last)
-        pitcher_id, batter_id = await asyncio.gather(pitcher_id_task, batter_id_task)
+        pitcher_id, batter_id = await asyncio.gather(
+            resolve_player_id(pitcher_first, pitcher_last),
+            resolve_player_id(batter_first, batter_last),
+        )
 
         if pitcher_id is None:
             await interaction.followup.send(
@@ -129,9 +130,7 @@ class MatchupCommands(commands.Cog):
                 return
             pitcher_id, batter_id = ids
 
-            stats: dict[str, int | float] = await asyncio.to_thread(
-                compute_matchup_stats, pitcher_id, batter_id, year
-            )
+            stats: dict[str, int | float] = await compute_matchup_stats(pitcher_id, batter_id, year)
 
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
@@ -216,8 +215,8 @@ class MatchupCommands(commands.Cog):
                 return
             pitcher_id, batter_id = ids
 
-            buf: BytesIO = await asyncio.to_thread(
-                fetch_matchup_zone, pitcher_id, batter_id, year, pitcher_name, batter_name
+            buf: BytesIO = await fetch_matchup_zone(
+                pitcher_id, batter_id, year, pitcher_name, batter_name
             )
 
         except ValueError as exc:

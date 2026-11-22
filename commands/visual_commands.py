@@ -4,7 +4,6 @@ commands/visual_commands.py — /spraychart command.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -22,7 +21,7 @@ from utils import current_season, validate_statcast_year
 
 log = logging.getLogger("harry")
 
-# Common team stadium names accepted by pybaseball's spraychart()
+# Common team stadium names accepted by bigleague's spray_chart()
 STADIUM_HELP = (
     "Team name for stadium overlay, e.g. 'tigers', 'guardians', 'yankees'. Use 'generic' if unsure."
 )
@@ -68,18 +67,14 @@ class VisualCommands(commands.Cog):
         log.info("/spraychart called: %s (%d) @ %s", player_name, year, stadium)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            buf: BytesIO = await asyncio.to_thread(
-                fetch_spray_chart, player_id, year, player_name, stadium
-            )
+            buf: BytesIO = await fetch_spray_chart(player_id, year, player_name, stadium)
 
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
@@ -99,7 +94,7 @@ class VisualCommands(commands.Cog):
             color=discord.Color.from_rgb(255, 140, 0),  # orange
         )
         embed.set_image(url="attachment://spraychart.png")
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
 
         await interaction.followup.send(embed=embed, file=file)
         log.info("/spraychart completed for %s (%d)", player_name, year)
@@ -135,18 +130,14 @@ class VisualCommands(commands.Cog):
         log.info("/hotzones called: %s (%d)", player_name, year)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            buf: BytesIO = await asyncio.to_thread(
-                fetch_hitter_hotzones, player_id, year, player_name
-            )
+            buf: BytesIO = await fetch_hitter_hotzones(player_id, year, player_name)
 
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
@@ -165,7 +156,7 @@ class VisualCommands(commands.Cog):
             color=discord.Color.from_rgb(220, 20, 60),  # crimson
         )
         embed.set_image(url="attachment://hotzones.png")
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
 
         await interaction.followup.send(embed=embed, file=file)
         log.info("/hotzones completed for %s (%d)", player_name, year)
@@ -185,7 +176,7 @@ class VisualCommands(commands.Cog):
         log.info("/stadium called: %s", team)
 
         try:
-            info = await asyncio.to_thread(fetch_stadium_info, team)
+            info = await fetch_stadium_info(team)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -201,6 +192,6 @@ class VisualCommands(commands.Cog):
             color=discord.Color.from_rgb(34, 139, 34),  # forest green
         )
         embed.set_image(url="attachment://stadium.png")
-        embed.set_footer(text="Data: Baseball Savant / pybaseball")
+        embed.set_footer(text="Data: Baseball Savant via bigleague")
 
         await interaction.followup.send(embed=embed, file=file)

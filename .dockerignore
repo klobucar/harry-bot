@@ -4,13 +4,11 @@
 __pycache__/
 *.pyc
 *.pyo
-.pybaseball_cache/
 .ruff_cache
 .pytest_cache
 tests/
 
 .cache/
-.pybaseball_cache/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
@@ -18,3 +16,8 @@ tests/
 htmlcov/
 .coverage
 coverage.xml
+
+.claude/
+.codex/
+
+minimal.toml

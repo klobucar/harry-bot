@@ -4,7 +4,6 @@ commands/info_commands.py — /standings, /schedule, /hope, and /abs slash comma
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import discord
@@ -56,7 +55,7 @@ class InfoCommands(commands.Cog):
         log.info("/standings called: %d", year)
 
         try:
-            divisions: list[tuple[str, str]] = await asyncio.to_thread(fetch_standings, year)
+            divisions: list[tuple[str, str]] = await fetch_standings(year)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -71,7 +70,7 @@ class InfoCommands(commands.Cog):
         )
         for division_name, table in divisions:
             embed.add_field(name=division_name, value=table, inline=False)
-        embed.set_footer(text="Data: Baseball Reference via pybaseball")
+        embed.set_footer(text="Data: MLB Stats API via bigleague")
 
         await interaction.followup.send(embed=embed)
         log.info("/standings completed: %d", year)
@@ -101,7 +100,7 @@ class InfoCommands(commands.Cog):
         log.info("/schedule called: %s %d", team_upper, year)
 
         try:
-            past, upcoming = await asyncio.to_thread(fetch_schedule, team_upper, year)
+            past, upcoming = await fetch_schedule(team_upper, year)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -118,7 +117,7 @@ class InfoCommands(commands.Cog):
             embed.add_field(name="Recent Results", value=past, inline=False)
         if upcoming:
             embed.add_field(name="Upcoming Games", value=upcoming, inline=False)
-        embed.set_footer(text="Data: Baseball Reference via pybaseball")
+        embed.set_footer(text="Data: MLB Stats API via bigleague")
 
         await interaction.followup.send(embed=embed)
         log.info("/schedule completed: %s %d", team_upper, year)
@@ -137,7 +136,7 @@ class InfoCommands(commands.Cog):
         log.info("/hope called: %s", team)
 
         try:
-            data = await asyncio.to_thread(fetch_team_hope, team)
+            data = await fetch_team_hope(team)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -219,9 +218,9 @@ class InfoCommands(commands.Cog):
 
         try:
             if team:
-                embed = await asyncio.to_thread(_build_team_embed, team, year)
+                embed = await _build_team_embed(team, year)
             else:
-                embed = await asyncio.to_thread(_build_league_embed, year)
+                embed = await _build_league_embed(year)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -265,7 +264,7 @@ class InfoCommands(commands.Cog):
         log.info("/playerabs called: %s %s %d", first_name, last_name, year)
 
         try:
-            embed = await asyncio.to_thread(_build_player_embed, first_name, last_name, year)
+            embed = await _build_player_embed(first_name, last_name, year)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -278,7 +277,7 @@ class InfoCommands(commands.Cog):
 
 
 # ---------------------------------------------------------------------------
-# /abs embed builders — pure functions, run in a worker thread.
+# /abs embed builders — async; data is awaited from bigleague.abs.
 # ---------------------------------------------------------------------------
 
 _ABS_COLOR = discord.Color.from_rgb(0, 122, 204)  # umpire-blue
@@ -297,9 +296,9 @@ def _fmt_rate(num: float | None) -> str:
     return f"{num * 100:.1f}%"
 
 
-def _build_team_embed(team: str, year: int) -> discord.Embed:
-    summary = fetch_team_summary(team, year)
-    top = fetch_team_top_challengers(team, year, limit=5)
+async def _build_team_embed(team: str, year: int) -> discord.Embed:
+    summary = await fetch_team_summary(team, year)
+    top = await fetch_team_top_challengers(team, year, limit=5)
 
     name = summary.get("entity_name") or team.upper()
     abbr = summary.get("team_abbr") or team.upper()
@@ -348,8 +347,8 @@ def _build_team_embed(team: str, year: int) -> discord.Embed:
     return embed
 
 
-def _build_player_embed(first: str, last: str, year: int) -> discord.Embed:
-    data = fetch_abs_player(first, last, year)
+async def _build_player_embed(first: str, last: str, year: int) -> discord.Embed:
+    data = await fetch_abs_player(first, last, year)
     totals = data["totals"]
     rate = (totals["n_overturns"] / totals["n_challenges"]) if totals["n_challenges"] else None
 
@@ -382,8 +381,8 @@ def _build_player_embed(first: str, last: str, year: int) -> discord.Embed:
     return embed
 
 
-def _build_league_embed(year: int) -> discord.Embed:
-    leaders = fetch_league_leaders(year, limit=10, min_challenges=3)
+async def _build_league_embed(year: int) -> discord.Embed:
+    leaders = await fetch_league_leaders(year, limit=10, min_challenges=3)
     if not leaders:
         raise ValueError(f"No ABS challenge data available yet for {year}.")
 

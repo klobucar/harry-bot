@@ -4,101 +4,70 @@ statcast_stats.py — Pure-data Statcast helpers (no plotting).
 Player lookups, head-to-head matchup stats, pitch arsenal, hot/cold rolling
 splits, exit-velocity, percentile ranks, standings, and schedule.
 
-All functions are synchronous (call via asyncio.to_thread() from async
-command handlers). No Discord imports, no matplotlib.
-
-Reads pybaseball references via attribute access on statcast_patch so test
-mocks (patch("statcast_patch.statcast_batter", ...)) take effect.
+This is a thin **async facade** over `bigleague`: bigleague is async-native
+and polars-backed, so these functions are now `async def` and are awaited
+directly from the command handlers (no more `asyncio.to_thread`). The public
+names, signatures, and return shapes are unchanged so the command layer is
+unaffected.
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Any
 
-import pandas as pd
-
-import statcast_patch
-from utils import current_year
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-#: Official at-bat event strings from Statcast. Module-level so they are not
-#: re-created on every call to compute_matchup_stats().
-AB_EVENTS: frozenset[str] = frozenset(
-    {
-        "single",
-        "double",
-        "triple",
-        "home_run",
-        "field_out",
-        "strikeout",
-        "strikeout_double_play",
-        "double_play",
-        "grounded_into_double_play",
-        "field_error",
-        "force_out",
-        "fielders_choice",
-        "fielders_choice_out",
-        "other_out",
-    }
+import bigleague
+from bigleague.http import mlb_get
+from bigleague.mlb import TEAM_IDS
+from bigleague.stats import (
+    AB_EVENTS,
+    HIT_EVENTS,
+    hot_cold_batter,
+    hot_cold_pitcher,
+    matchup_stats,
+    parse_exit_velo,
+    parse_percentile_ranks,
+    parse_pitch_arsenal,
+    season_range,
 )
 
-HIT_EVENTS: frozenset[str] = frozenset({"single", "double", "triple", "home_run"})
+__all__ = [
+    "AB_EVENTS",
+    "HIT_EVENTS",
+    "compute_matchup_stats",
+    "fetch_exit_velo",
+    "fetch_hot_cold",
+    "fetch_percentile_ranks",
+    "fetch_pitch_arsenal",
+    "fetch_player_mlb_years",
+    "fetch_schedule",
+    "fetch_standings",
+    "resolve_player_id",
+    "season_range",
+]
 
 
 # ---------------------------------------------------------------------------
-# Utility
+# Player lookups
 # ---------------------------------------------------------------------------
 
 
-def season_range(year: int) -> tuple[str, str]:
-    """Return (start_dt, end_dt) strings for a full MLB regular season."""
-    return f"{year}-03-01", f"{year}-11-30"
+async def resolve_player_id(first: str, last: str) -> int | None:
+    """Look up a player's MLBAM ID by name (case-insensitive, fuzzy).
 
-
-def resolve_player_id(first: str, last: str) -> int | None:
+    Returns the top match's MLBAM id, or None if nothing is found.
     """
-    Look up a player's MLBAM ID by name (case-insensitive).
+    return await bigleague.resolve_id(first, last)
 
-    Uses fuzzy matching so minor typos (e.g. "Tarki" → "Tarik") still resolve.
-    Returns the top match's key_mlbam integer, or None if nothing is found.
+
+async def fetch_player_mlb_years(first: str, last: str) -> tuple[int, int]:
+    """Return (debut_year, last_active_year) for a player.
+
+    Falls back to (current_year - 3, current_year) if the data is missing;
+    for active players whose register lags, the upper bound extends to the
+    current year. Both handled inside bigleague.mlb_years.
     """
-    statcast_patch._init_pybaseball()
-    result: pd.DataFrame = statcast_patch.playerid_lookup(last, first, fuzzy=True)
-    if result.empty:
-        return None
-    mlbam_col = result["key_mlbam"].dropna()
-    if mlbam_col.empty:
-        return None
-    return int(mlbam_col.iloc[0])
-
-
-def fetch_player_mlb_years(first: str, last: str) -> tuple[int, int]:
-    """
-    Return (debut_year, last_active_year) for a player using playerid_lookup.
-
-    mlb_played_first / mlb_played_last come from the Baseball Reference
-    register embedded in pybaseball's lookup table.
-
-    Falls back to (current_year - 3, current_year) if the data is missing.
-    """
-    cy = current_year()
-    statcast_patch._init_pybaseball()
-    result: pd.DataFrame = statcast_patch.playerid_lookup(last, first, fuzzy=True)
-    if result.empty:
-        return (cy - 3, cy)
-    row = result.iloc[0]
-
-    debut = row.get("mlb_played_first")
-    last_yr = row.get("mlb_played_last")
-
-    debut = int(debut) if pd.notna(debut) else (cy - 3)
-    last_yr = int(last_yr) if pd.notna(last_yr) else cy
-    # For active players mlb_played_last may lag; extend to current year
-    last_yr = max(last_yr, cy)
-    return (debut, last_yr)
+    return await bigleague.mlb_years(first, last)
 
 
 # ---------------------------------------------------------------------------
@@ -106,58 +75,25 @@ def fetch_player_mlb_years(first: str, last: str) -> tuple[int, int]:
 # ---------------------------------------------------------------------------
 
 
-def compute_matchup_stats(
+async def compute_matchup_stats(
     pitcher_id: int,
     batter_id: int,
     year: int,
 ) -> dict[str, int | float]:
-    """
-    Fetch Statcast batter data and compute head-to-head stats against a pitcher.
+    """Compute head-to-head stats for a batter against a pitcher.
 
     Returns a dict with keys: pa, ab, hits, strikeouts, batting_avg.
     Raises ValueError if no matchup data is found.
     """
-    statcast_patch._init_pybaseball()
-    start_dt, end_dt = season_range(year)
-    raw: pd.DataFrame = statcast_patch.statcast_batter(start_dt, end_dt, batter_id)
-
-    if raw is None or raw.empty:
+    df = await bigleague.statcast_season(batter_id, year, "batter")
+    if df.is_empty():
         raise ValueError(f"No Statcast data for batter_id={batter_id} in {year}.")
-
-    # Memory optimization: only need pitcher + events columns
-    data = raw[["pitcher", "events"]].copy()
-    del raw
-
-    matchup: pd.DataFrame = data[data["pitcher"] == pitcher_id]
-    del data
-
-    if matchup.empty:
+    try:
+        return matchup_stats(df, pitcher_id)
+    except ValueError as exc:
         raise ValueError(
             f"No plate appearances between pitcher {pitcher_id} and batter {batter_id} in {year}."
-        )
-
-    atbats = matchup[matchup["events"].isin(AB_EVENTS)]
-    hits = atbats[atbats["events"].isin(HIT_EVENTS)]
-    strikeouts: int = int(
-        (matchup["events"] == "strikeout").sum()
-        + (matchup["events"] == "strikeout_double_play").sum()
-    )
-    ab_count = len(atbats)
-    hit_count = len(hits)
-
-    stats = {
-        "pa": len(matchup),
-        "ab": ab_count,
-        "hits": hit_count,
-        "strikeouts": strikeouts,
-        "batting_avg": (hit_count / ab_count) if ab_count > 0 else 0.0,
-    }
-
-    del matchup
-    del atbats
-    del hits
-
-    return stats
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -165,160 +101,130 @@ def compute_matchup_stats(
 # ---------------------------------------------------------------------------
 
 
-def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
+async def fetch_pitch_arsenal(pitcher_id: int, year: int) -> list[dict]:
+    """Fetch pitch arsenal stats for a pitcher in a given year.
+
+    Returns a list of dicts with keys: pitch, mph, spin, usage (usage %),
+    sorted by usage descending. Raises ValueError if the pitcher doesn't
+    appear in arsenal data.
     """
-    Fetch pitch arsenal stats for a specific pitcher in a given year.
-
-    Returns a list of dicts with keys: pitch, mph, spin, usage.
-    Raises ValueError if the pitcher doesn't appear in arsenal data.
-    """
-    statcast_patch._init_pybaseball()
-    # Fetch all pitchers with low minP so fringe guys aren't excluded
-    speed_df: pd.DataFrame = statcast_patch.statcast_pitcher_pitch_arsenal(
-        year, minP=10, arsenal_type="avg_speed"
-    )
-    spin_df: pd.DataFrame = statcast_patch.statcast_pitcher_pitch_arsenal(
-        year, minP=10, arsenal_type="avg_spin"
-    )
-    usage_df: pd.DataFrame = statcast_patch.statcast_pitcher_pitch_arsenal(
-        year, minP=10, arsenal_type="n_"
-    )
-
-    def _filter(df: pd.DataFrame) -> pd.DataFrame:
-        if df is None or df.empty:
-            return pd.DataFrame()
-        return df[df["pitcher"] == pitcher_id]
-
-    speed_row = _filter(speed_df)
-    spin_row = _filter(spin_df)
-    usage_row = _filter(usage_df)
-
-    if speed_row.empty:
+    df = await bigleague.pitcher_pitch_arsenal(pitcher_id, year)
+    arsenal = parse_pitch_arsenal(df)
+    if not arsenal:
         raise ValueError(f"No arsenal data for pitcher_id={pitcher_id} in {year}.")
-
-    # Columns are formatted like 'ff_avg_speed', 'sl_avg_speed', etc.
-    # Find pitch prefixes by looking for the '_avg_speed' suffix.
-    prefixes = [c.replace("_avg_speed", "") for c in speed_row.columns if c.endswith("_avg_speed")]
-
-    # Calculate total pitches first so we can compute true usage percentages
-    total_pitches = 0
-    for prefix in prefixes:
-        usage_col = f"n_{prefix}"
-        if usage_col in usage_row.columns:
-            val = usage_row[usage_col].iloc[0]
-            if pd.notna(val):
-                total_pitches += float(val)
-
-    results: list[dict] = []
-    for prefix in prefixes:
-        speed_col = f"{prefix}_avg_speed"
-        spin_col = f"{prefix}_avg_spin"
-        usage_col = f"n_{prefix}"
-
-        mph_val = speed_row[speed_col].iloc[0] if speed_col in speed_row.columns else float("nan")
-        spin_val = spin_row[spin_col].iloc[0] if spin_col in spin_row.columns else float("nan")
-        usage_val = usage_row[usage_col].iloc[0] if usage_col in usage_row.columns else float("nan")
-
-        if pd.isna(mph_val) or pd.isna(usage_val) or total_pitches == 0:
-            continue
-
-        pct = (float(usage_val) / total_pitches) * 100
-
-        results.append(
-            {
-                "pitch": prefix.upper(),
-                "mph": float(mph_val),
-                "spin": float(spin_val) if not pd.isna(spin_val) else 0.0,
-                "usage": pct,
-            }
-        )
-
-    results.sort(key=lambda x: x["usage"], reverse=True)
-    return results
+    # bigleague names the usage column `usage_pct`; the embed layer expects `usage`.
+    return [
+        {"pitch": p["pitch"], "mph": p["mph"], "spin": p["spin"], "usage": p["usage_pct"]}
+        for p in arsenal
+    ]
 
 
 # ---------------------------------------------------------------------------
 # Standings + schedule
 # ---------------------------------------------------------------------------
 
-_DIVISION_NAMES = [
-    "AL East",
-    "AL Central",
-    "AL West",
-    "NL East",
-    "NL Central",
-    "NL West",
-]
 
+async def fetch_standings(year: int) -> list[tuple[str, str]]:
+    """Fetch MLB division standings for a season.
 
-def fetch_standings(year: int) -> list[tuple[str, str]]:
+    Returns a list of (division_name, formatted_table) tuples, one per
+    division. Raises ValueError if no data is returned.
     """
-    Fetch MLB division standings for a season.
-
-    Returns a list of (division_name, formatted_table) tuples, one per division.
-    Raises ValueError if no data is returned.
-    """
-    statcast_patch._init_pybaseball()
-    data = statcast_patch.standings(year)
-
-    if not data:
+    divisions = await bigleague.standings(year)
+    if not divisions:
         raise ValueError(f"No standings data available for {year}.")
 
     results: list[tuple[str, str]] = []
-    for i, df in enumerate(data):
-        div_name = _DIVISION_NAMES[i] if i < len(_DIVISION_NAMES) else f"Division {i + 1}"
-        # Build a compact code-block table: Team | W | L | GB
+    for div in divisions:
         lines = []
-        for _, row in df.iterrows():
-            team = str(row.get("Tm", "???"))[:12]
-            w = str(row.get("W", "?"))
-            losses = str(row.get("L", "?"))
-            gb = str(row.get("GB", "?"))
+        for t in div.get("teams", []):
+            team = str(t.get("name", "???"))[:12]
+            w = str(t.get("w", "?"))
+            losses = str(t.get("l", "?"))
+            gb = str(t.get("gb", "?"))
             lines.append(f"{team:<13} {w:>3}-{losses:<3} {gb:>5}")
         table = "```\n" + "\n".join(lines) + "\n```"
-        results.append((div_name, table))
+        results.append((str(div.get("division", "Division")), table))
 
     return results
 
 
-def fetch_schedule(team: str, year: int) -> tuple[str, str]:
-    """
-    Fetch a team's schedule and record for a season.
+# Reverse map: MLB Stats API team id -> 3-letter abbreviation, for rendering
+# the opponent column in /schedule. Prefer the canonical 3-letter form when
+# several aliases share an id.
+_CANONICAL_ABBRS: frozenset[str] = frozenset(
+    {"ARI", "ATL", "BAL", "BOS", "CHC", "CWS", "CIN", "CLE", "COL", "DET",
+     "HOU", "KC", "LAA", "LAD", "MIA", "MIL", "MIN", "NYM", "NYY", "OAK",
+     "PHI", "PIT", "SD", "SF", "SEA", "STL", "TB", "TEX", "TOR", "WSN"}
+)  # fmt: skip
+_ID_TO_ABBR: dict[int, str] = {
+    tid: abbr for abbr, tid in TEAM_IDS.items() if abbr in _CANONICAL_ABBRS
+}
+
+
+async def fetch_schedule(team: str, year: int) -> tuple[str, str]:
+    """Fetch a team's schedule and record for a season.
 
     Returns (past_block, upcoming_block): formatted code-block strings for
-    the last 5 completed games and next 5 scheduled games.
-    Raises ValueError if no schedule data found.
+    the last 5 completed games and next 5 scheduled games. Raises ValueError
+    if no schedule data is found.
     """
-    statcast_patch._init_pybaseball()
-    df: pd.DataFrame = statcast_patch.schedule_and_record(year, team)
+    tid = TEAM_IDS.get(team.upper())
+    if tid is None:
+        raise ValueError(f"Unknown team abbreviation {team!r}.")
 
-    if df is None or df.empty:
+    data = await mlb_get(
+        "/schedule",
+        {
+            "sportId": 1,
+            "teamId": tid,
+            "startDate": f"{year}-03-01",
+            "endDate": f"{year}-11-30",
+            "gameType": "R",
+            "hydrate": "probablePitcher",
+        },
+    )
+
+    games = [g for day in data.get("dates", []) for g in day.get("games", [])]
+    if not games:
         raise ValueError(f"No schedule data for team={team!r} in {year}.")
 
-    # Completed games have a W/L result
-    completed = df[df["W/L"].notna() & (df["W/L"] != "")]
-    scheduled = df[df["W/L"].isna() | (df["W/L"] == "")]
+    def _row(game: dict[str, Any], *, completed: bool) -> str:
+        gd = str(game.get("gameDate", ""))
+        day = gd[5:10].replace("-", "/") if len(gd) >= 10 else "?"
+        teams = game.get("teams", {})
+        home = teams.get("home", {})
+        away = teams.get("away", {})
+        is_home = (home.get("team") or {}).get("id") == tid
+        our, opp = (home, away) if is_home else (away, home)
+        opp_team = opp.get("team") or {}
+        opp_id = opp_team.get("id")
+        opp_abbr = (_ID_TO_ABBR.get(opp_id) if isinstance(opp_id, int) else None) or str(
+            opp_team.get("name", "???")
+        )[:4]
+        ha = "vs" if is_home else "@"
+        if completed:
+            won = bool(our.get("isWinner"))
+            wl = "W" if won else "L"
+            r = our.get("score", "?")
+            ra = opp.get("score", "?")
+            return f"{day:<7} {ha} {opp_abbr:<4}  {wl}  {r}-{ra}"
+        t = gd[11:16] if len(gd) > 16 else "TBD"
+        return f"{day:<7} {ha} {opp_abbr:<4}  {t}"
 
-    def _fmt_row(row: pd.Series, is_result: bool) -> str:
-        date = str(row.get("Date", ""))[:6]
-        opp = str(row.get("Opp", "???"))[:4]
-        ha = "vs" if row.get("H/A", "") != "@" else "@"
-        if is_result:
-            wl = str(row.get("W/L", ""))[:1]
-            r = str(int(row["R"])) if pd.notna(row.get("R")) else "?"
-            ra = str(int(row["RA"])) if pd.notna(row.get("RA")) else "?"
-            return f"{date:<7} {ha} {opp:<4}  {wl}  {r}-{ra}"
-        time = str(row.get("Time", ""))[:5]
-        return f"{date:<7} {ha} {opp:<4}  {time}"
+    def _state(game: dict[str, Any]) -> str:
+        return (game.get("status") or {}).get("abstractGameState", "")
 
-    past_lines = [_fmt_row(r, True) for _, r in completed.tail(5).iterrows()]
-    next_lines = [_fmt_row(r, False) for _, r in scheduled.head(5).iterrows()]
+    completed = [g for g in games if _state(g) == "Final"]
+    scheduled = [g for g in games if _state(g) in ("Preview", "Scheduled")]
+
+    past_lines = [_row(g, completed=True) for g in completed[-5:]]
+    next_lines = [_row(g, completed=False) for g in scheduled[:5]]
 
     past_block = "```\n" + "\n".join(past_lines) + "\n```" if past_lines else ""
     upcoming_block = (
         "```\n" + "\n".join(next_lines) + "\n```" if next_lines else "No upcoming games found."
     )
-
     return past_block, upcoming_block
 
 
@@ -327,89 +233,50 @@ def fetch_schedule(team: str, year: int) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def fetch_hot_cold(
+async def fetch_hot_cold(
     player_id: int,
     days: int,
     player_name: str,
     player_type: str = "batter",
 ) -> dict[str, str | int | float]:
-    """
-    Fetch rolling Statcast stats for a player over the last N days.
+    """Fetch rolling Statcast stats for a player over the last N days.
 
-    player_type: "batter" or "pitcher"
-    Returns dict with AVG, OBP, SLG, wOBA (batter) or ERA, K/9, WHIP proxy (pitcher).
+    player_type: "batter" or "pitcher". Returns a dict keyed for the embed.
     Raises ValueError if no data in the date range.
     """
     end_dt = date.today()
     start_dt = end_dt - timedelta(days=days)
-    start_str = start_dt.strftime("%Y-%m-%d")
-    end_str = end_dt.strftime("%Y-%m-%d")
 
-    statcast_patch._init_pybaseball()
     if player_type == "pitcher":
-        raw: pd.DataFrame = statcast_patch.statcast_pitcher(start_str, end_str, player_id=player_id)
+        df = await bigleague.statcast_pitcher(player_id, start_dt, end_dt)
     else:
-        raw = statcast_patch.statcast_batter(start_str, end_str, player_id)
+        df = await bigleague.statcast_batter(player_id, start_dt, end_dt)
 
-    if raw is None or raw.empty:
-        raise ValueError(f"No Statcast data for {player_name} in the last {days} days.")
-
-    # Memory optimization: only need events column for stat calculations
-    data = raw[["events"]].copy()
-    del raw
-
-    if data.empty:
+    if df.is_empty():
         raise ValueError(f"No Statcast data for {player_name} in the last {days} days.")
 
     if player_type == "pitcher":
-        total_pitches = len(data)
-        k = int(
-            (data["events"] == "strikeout").sum()
-            + (data["events"] == "strikeout_double_play").sum()
-        )
-        bb = int((data["events"] == "walk").sum())
-        pa = data["events"].notna().sum()
-        hr = int((data["events"] == "home_run").sum())
+        r = hot_cold_pitcher(df)
         return {
             "period": f"Last {days} days",
-            "Pitches": total_pitches,
-            "K": k,
-            "BB": bb,
-            "HR allowed": hr,
-            "PA faced": int(pa),
+            "Pitches": r["pitches"],
+            "K": r["k"],
+            "BB": r["bb"],
+            "HR allowed": r["hr_allowed"],
+            "PA faced": r["pa_faced"],
         }
-    ab_df = data[data["events"].isin(AB_EVENTS)]
-    hit_df = ab_df[ab_df["events"].isin(HIT_EVENTS)]
-    ab = len(ab_df)
-    h = len(hit_df)
-    bb = int((data["events"] == "walk").sum())
-    pa = ab + bb
-    avg = h / ab if ab > 0 else 0.0
-    obp = (h + bb) / pa if pa > 0 else 0.0
-    tb = (
-        int((ab_df["events"] == "single").sum())
-        + 2 * int((ab_df["events"] == "double").sum())
-        + 3 * int((ab_df["events"] == "triple").sum())
-        + 4 * int((ab_df["events"] == "home_run").sum())
-    )
-    slg = tb / ab if ab > 0 else 0.0
 
-    stats = {
+    r = hot_cold_batter(df)
+    return {
         "period": f"Last {days} days",
-        "PA": pa,
-        "H": h,
-        "AB": ab,
-        "AVG": round(avg, 3),
-        "OBP": round(obp, 3),
-        "SLG": round(slg, 3),
-        "OPS": round(obp + slg, 3),
+        "PA": r["pa"],
+        "H": r["h"],
+        "AB": r["ab"],
+        "AVG": r["avg"],
+        "OBP": r["obp"],
+        "SLG": r["slg"],
+        "OPS": r["ops"],
     }
-
-    del data
-    del ab_df
-    del hit_df
-
-    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -417,101 +284,41 @@ def fetch_hot_cold(
 # ---------------------------------------------------------------------------
 
 
-def fetch_exit_velo(player_id: int, year: int, player_name: str) -> dict[str, str | float]:
+async def fetch_exit_velo(player_id: int, year: int, player_name: str) -> dict[str, str]:
+    """Fetch Statcast exit velocity and barrel stats for a batter in a year.
+
+    Raises ValueError if the player doesn't appear in the exit-velo leaderboard.
     """
-    Fetch Statcast exit velocity and barrel stats for a batter in a given year.
-
-    Raises ValueError if the player doesn't appear in the exit velo leaderboard.
-    """
-    statcast_patch._init_pybaseball()
-    data: pd.DataFrame = statcast_patch.statcast_batter_exitvelo_barrels(year, minBBE=25)
-
-    if data is None or data.empty:
-        raise ValueError(f"No exit velocity data available for {year}.")
-
-    row = data[data["player_id"] == player_id]
-
-    if row.empty:
+    df = await bigleague.batter_exit_velo(year, min_bbe=25)
+    try:
+        return parse_exit_velo(df, player_id)
+    except ValueError as exc:
         raise ValueError(
             f"No exit velocity data for {player_name} in {year} (min 25 BBE required)."
-        )
-
-    r = row.iloc[0]
-    return {
-        "Avg Exit Velo": f"{r.get('avg_hit_speed', float('nan')):.1f} mph",
-        "Max Exit Velo": f"{r.get('max_hit_speed', float('nan')):.1f} mph",
-        "Avg Launch Angle": f"{r.get('avg_hit_angle', float('nan')):.1f}°",
-        "Barrel %": f"{r.get('brl_percent', float('nan')):.1f}%",
-        "Hard Hit %": f"{r.get('anglesweetspotpercent', float('nan')):.1f}%",
-        "Barrels": str(int(r.get("brl_pa", 0))),
-        "BBE": str(int(r.get("pa", 0))),
-    }
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
 # Statcast percentile ranks
 # ---------------------------------------------------------------------------
 
-_PITCHER_PERCENTILE_COLS = {
-    "hard_hit_percent": "Hard Hit%",
-    "k_percent": "K%",
-    "bb_percent": "BB%",
-    "xwoba": "xwOBA",
-    "xera": "xERA",
-    "fastball_avg_speed": "FB Velo",
-    "spin_rate_percent": "Spin Rate",
-}
 
-_BATTER_PERCENTILE_COLS = {
-    "exit_velocity_avg": "Exit Velo",
-    "hard_hit_percent": "Hard Hit%",
-    "k_percent": "K%",
-    "bb_percent": "BB%",
-    "xwoba": "xwOBA",
-    "xba": "xBA",
-    "xslg": "xSLG",
-    "sprint_speed": "Sprint Speed",
-}
-
-
-def fetch_percentile_ranks(
+async def fetch_percentile_ranks(
     player_id: int,
     year: int,
     player_name: str,
     player_type: str = "pitcher",
 ) -> dict[str, str]:
-    """
-    Fetch Statcast percentile ranks for a player.
+    """Fetch Statcast percentile ranks for a player.
 
-    player_type: "pitcher" or "batter"
-    Returns dict of stat_name → "NN%" (formatted percentile).
-    Raises ValueError if player not found.
+    player_type: "pitcher" or "batter". Returns dict of stat label →
+    "NN th percentile". Raises ValueError if player not found.
     """
-    statcast_patch._init_pybaseball()
     if player_type == "pitcher":
-        data: pd.DataFrame = statcast_patch.statcast_pitcher_percentile_ranks(year)
-        cols = _PITCHER_PERCENTILE_COLS
+        df = await bigleague.pitcher_percentile_ranks(player_id, year)
     else:
-        data = statcast_patch.statcast_batter_percentile_ranks(year)
-        cols = _BATTER_PERCENTILE_COLS
-
-    if data is None or data.empty:
-        raise ValueError(f"No percentile rank data for {year}.")
-
-    # Try to find by numeric ID across possible column names
-    row = pd.DataFrame()
-    for col in ("player_id", "pitcher_id", "batter_id", "mlbam_id"):
-        if col in data.columns:
-            row = data[data[col] == player_id]
-            if not row.empty:
-                break
-
-    if row.empty:
-        raise ValueError(f"No percentile data found for {player_name} in {year}.")
-
-    r = row.iloc[0]
-    result: dict[str, str] = {}
-    for raw_col, label in cols.items():
-        if raw_col in r.index and pd.notna(r[raw_col]):
-            result[label] = f"{int(r[raw_col])}th percentile"
-    return result
+        df = await bigleague.batter_percentile_ranks(player_id, year)
+    try:
+        return parse_percentile_ranks(df, player_id, player_type)  # ty: ignore[invalid-argument-type]
+    except ValueError as exc:
+        raise ValueError(f"No percentile data found for {player_name} in {year}.") from exc

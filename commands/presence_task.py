@@ -306,7 +306,7 @@ class PresenceTask(commands.Cog):
         now = datetime.now(tz=UTC)
 
         try:
-            games = await asyncio.to_thread(fetch_live_scores, TEAM)
+            games = await fetch_live_scores(TEAM)
         except ValueError:
             await self._go_idle()
             return seconds_until_next_morning(now)

@@ -8,13 +8,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Literal, cast
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from commands.autocomplete import first_name_autocomplete, last_name_autocomplete
-from fangraphs import aggregate_career_frames, fetch_leaderboard, fetch_year_fangraphs
+from fangraphs import (
+    LeaderboardPlayerType,
+    aggregate_career_frames,
+    fetch_leaderboard,
+    fetch_year_fangraphs,
+    player_role_blocks,
+)
 from persona import harry_error, safe_exc_label
 from statcast import (
     fetch_exit_velo,
@@ -69,18 +76,14 @@ class AdvancedCommands(commands.Cog):
         log.info("/hotcold: %s last %dd [%s]", player_name, days, player_type)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            stats: dict = await asyncio.to_thread(
-                fetch_hot_cold, player_id, days, player_name, player_type
-            )
+            stats: dict = await fetch_hot_cold(player_id, days, player_name, player_type)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -97,7 +100,7 @@ class AdvancedCommands(commands.Cog):
         for k, v in stats.items():
             if k != "period":
                 embed.add_field(name=k, value=str(v), inline=True)
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
         await interaction.followup.send(embed=embed)
 
     # -----------------------------------------------------------------------
@@ -133,16 +136,14 @@ class AdvancedCommands(commands.Cog):
         log.info("/exitvelo: %s (%d)", player_name, year)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            stats: dict = await asyncio.to_thread(fetch_exit_velo, player_id, year, player_name)
+            stats: dict = await fetch_exit_velo(player_id, year, player_name)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -157,7 +158,7 @@ class AdvancedCommands(commands.Cog):
         )
         for k, v in stats.items():
             embed.add_field(name=k, value=str(v), inline=True)
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
         await interaction.followup.send(embed=embed)
 
     # -----------------------------------------------------------------------
@@ -196,18 +197,14 @@ class AdvancedCommands(commands.Cog):
         log.info("/percentile: %s (%d) [%s]", player_name, year, player_type)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            ranks: dict = await asyncio.to_thread(
-                fetch_percentile_ranks, player_id, year, player_name, player_type
-            )
+            ranks: dict = await fetch_percentile_ranks(player_id, year, player_name, player_type)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -223,7 +220,7 @@ class AdvancedCommands(commands.Cog):
         )
         for stat, rank in ranks.items():
             embed.add_field(name=stat, value=rank, inline=True)
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
         await interaction.followup.send(embed=embed)
 
     # -----------------------------------------------------------------------
@@ -254,12 +251,10 @@ class AdvancedCommands(commands.Cog):
         cy = current_year()
         log.info("/career: %s", player_name)
 
-        # Lookup debut + last active year — runs in a thread so it doesn't block
-        debut, _ = await asyncio.to_thread(
-            fetch_player_mlb_years, first_name.strip(), last_name.strip()
-        )
+        # Lookup debut + last active year.
+        debut, last_active = await fetch_player_mlb_years(first_name.strip(), last_name.strip())
         debut = max(debut, 2002)
-        years = list(range(debut, cy + 1))
+        years = list(range(debut, min(last_active, cy) + 1))
 
         # If the user asked for fewer seasons, take the tail end
         if last_n_years is not None:
@@ -270,26 +265,23 @@ class AdvancedCommands(commands.Cog):
 
         sem = asyncio.Semaphore(1)
 
-        async def _bounded(yr: int, player_type: str):
+        async def _bounded(yr: int, player_type: Literal["pitcher", "batter"]):
             async with sem:
-                return player_type, await asyncio.to_thread(
-                    fetch_year_fangraphs, yr, player_type, first_name.strip(), last_name.strip()
+                return player_type, await fetch_year_fangraphs(
+                    yr, player_type, first_name.strip(), last_name.strip()
                 )
 
         tasks = [_bounded(yr, t) for yr in years for t in ("pitcher", "batter")]
 
         try:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks)
         except Exception as exc:
             log.exception("/career gather error")
             await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
         pitch_frames, bat_frames = [], []
-        for item in results:
-            if isinstance(item, BaseException):
-                continue
-            player_type, df = item
+        for player_type, df in results:
             if df is not None:
                 (pitch_frames if player_type == "pitcher" else bat_frames).append(df)
 
@@ -301,14 +293,24 @@ class AdvancedCommands(commands.Cog):
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
 
+        roles = player_role_blocks(result)
+        role_summary = " | ".join(
+            f"**{role.title()}:** {block.get('team', 'N/A')}" for role, block in roles.items()
+        )
         embed = discord.Embed(
             title=f"🏆 Career Stats: {player_name}",
-            description=f"**Type:** {result['type'].title()} | **{result['team']}**",
+            description=f"**Type:** {result['type'].title()} | {role_summary}",
             color=discord.Color.from_rgb(160, 32, 240),
         )
-        for k, v in result["stats"].items():
-            embed.add_field(name=k, value=str(v), inline=True)
-        embed.set_footer(text="Data: FanGraphs via pybaseball")
+        multiple_roles = len(roles) > 1
+        for role, block in roles.items():
+            stats = block.get("stats", {})
+            if not isinstance(stats, dict):
+                continue
+            for key, value in stats.items():
+                field_name = f"{role.title()} · {key}" if multiple_roles else key
+                embed.add_field(name=field_name, value=str(value), inline=True)
+        embed.set_footer(text="Data: FanGraphs via bigleague")
         await interaction.followup.send(embed=embed)
 
     # -----------------------------------------------------------------------
@@ -343,9 +345,8 @@ class AdvancedCommands(commands.Cog):
         log.info("/leaderboard: %s %d [%s]", stat, year, player_type)
 
         try:
-            leaders: list[dict] = await asyncio.to_thread(
-                fetch_leaderboard, stat.strip(), year, player_type
-            )
+            leaderboard_type = cast("LeaderboardPlayerType", player_type)
+            leaders: list[dict] = await fetch_leaderboard(stat.strip(), year, leaderboard_type)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -354,8 +355,15 @@ class AdvancedCommands(commands.Cog):
             await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
+        show_role = len({entry.get("player_type") for entry in leaders}) > 1
         rows = "\n".join(
-            f"{entry['rank']:>2}. {entry['name']:<22} {entry['team']:<5} {entry['value']}"
+            (
+                f"{entry['rank']:>2}. {entry['name']:<20} "
+                f"{str(entry.get('player_type', '?'))[0].upper()} "
+                f"{entry['team']:<5} {entry['value']}"
+                if show_role
+                else f"{entry['rank']:>2}. {entry['name']:<22} {entry['team']:<5} {entry['value']}"
+            )
             for entry in leaders
         )
         embed = discord.Embed(
@@ -363,5 +371,5 @@ class AdvancedCommands(commands.Cog):
             description=f"```\n{rows}\n```",
             color=discord.Color.from_rgb(255, 200, 0),
         )
-        embed.set_footer(text="Data: FanGraphs via pybaseball")
+        embed.set_footer(text="Data: FanGraphs via bigleague")
         await interaction.followup.send(embed=embed)

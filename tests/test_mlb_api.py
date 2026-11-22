@@ -1,18 +1,20 @@
 """
 tests/test_mlb_api.py — Tests for mlb_api.py helpers.
 
-All network calls (urllib.request.urlopen) are mocked.
+mlb_api is now a thin facade over bigleague.mlb (async, httpx). All
+network calls go through `bigleague.mlb.mlb_get`, which is patched as an
+AsyncMock returning canned MLB Stats API JSON payloads (the parsed dict
+that the old `requests` `.json()` used to return).
 """
 
 from __future__ import annotations
 
 from typing import ClassVar
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from mlb_api import (
-    _team_id,
     fetch_injuries,
     fetch_live_scores,
     fetch_next_game,
@@ -21,37 +23,12 @@ from mlb_api import (
     fetch_transactions,
 )
 
-# ---------------------------------------------------------------------------
-# Helper: mock requests.get to return a JSON payload
-# ---------------------------------------------------------------------------
+pytestmark = pytest.mark.anyio
 
 
-def _mock_get(payload: dict):
-    """Return a mock requests.Response that returns the given payload as JSON."""
-    mock_resp = MagicMock()
-    mock_resp.json.return_value = payload
-    mock_resp.raise_for_status = MagicMock()
-    return mock_resp
-
-
-# ---------------------------------------------------------------------------
-# _team_id
-# ---------------------------------------------------------------------------
-
-
-class TestTeamId:
-    def test_known_abbreviation(self) -> None:
-        assert _team_id("DET") == 116
-
-    def test_case_insensitive(self) -> None:
-        assert _team_id("det") == 116
-
-    def test_alias_kcr(self) -> None:
-        assert _team_id("KCR") == _team_id("KC")
-
-    def test_unknown_abbreviation_raises(self) -> None:
-        with pytest.raises(ValueError, match="Unknown team"):
-            _team_id("XYZ")
+def _patch_mlb_get(payload: dict):
+    """Patch bigleague.mlb.mlb_get as an AsyncMock returning `payload`."""
+    return patch("bigleague.mlb.mlb_get", new=AsyncMock(return_value=payload))
 
 
 # ---------------------------------------------------------------------------
@@ -75,30 +52,27 @@ class TestFetchRoster:
         ]
     }
 
-    def test_returns_list_of_players(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_roster("DET")
+    async def test_returns_list_of_players(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_roster("DET")
         assert len(result) == 2
         names = [p["name"] for p in result]
         assert "Tarik Skubal" in names
 
-    def test_player_has_required_keys(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_roster("DET")
+    async def test_player_has_required_keys(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_roster("DET")
         for p in result:
             assert "name" in p
             assert "pos" in p
 
-    def test_empty_roster_raises(self) -> None:
-        with (
-            patch("mlb_api.requests.get", return_value=_mock_get({"roster": []})),
-            pytest.raises(ValueError, match="No active roster"),
-        ):
-            fetch_roster("DET")
+    async def test_empty_roster_raises(self) -> None:
+        with _patch_mlb_get({"roster": []}), pytest.raises(ValueError, match="No active roster"):
+            await fetch_roster("DET")
 
-    def test_unknown_team_raises(self) -> None:
+    async def test_unknown_team_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown team"):
-            fetch_roster("ZZZ")
+            await fetch_roster("ZZZ")
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +81,9 @@ class TestFetchRoster:
 
 
 class TestFetchInjuries:
+    # bigleague.injuries pulls the 40-man roster and keeps players whose
+    # status.code starts with "D" (D7/D10/D15/D60). The note is built from
+    # status.description ("Injured 15-Day" -> "15-Day") plus the player note.
     _PAYLOAD: ClassVar[dict] = {
         "roster": [
             {
@@ -130,26 +107,26 @@ class TestFetchInjuries:
         ]
     }
 
-    def test_returns_only_il_players(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_injuries("DET")
+    async def test_returns_only_il_players(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_injuries("DET")
         names = [p["name"] for p in result]
         assert "Justin Verlander" in names
         assert "Troy Melton" in names
         assert "Tarik Skubal" not in names
 
-    def test_note_includes_il_stint(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_injuries("DET")
+    async def test_note_includes_il_stint(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_injuries("DET")
         verlander = next(p for p in result if p["name"] == "Justin Verlander")
         assert "15-Day IL" in verlander["note"]
         assert "hip" in verlander["note"]
         melton = next(p for p in result if p["name"] == "Troy Melton")
         assert melton["note"] == "60-Day IL"
 
-    def test_empty_il_returns_empty_list(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get({"roster": []})):
-            result = fetch_injuries("DET")
+    async def test_empty_il_returns_empty_list(self) -> None:
+        with _patch_mlb_get({"roster": []}):
+            result = await fetch_injuries("DET")
         assert result == []
 
 
@@ -166,22 +143,22 @@ class TestFetchTransactions:
         ]
     }
 
-    def test_returns_sorted_desc_by_date(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_transactions("DET", days=7)
+    async def test_returns_sorted_desc_by_date(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_transactions("DET", days=7)
         assert result[0]["date"] == "2025-04-01"
 
-    def test_description_present(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_transactions("DET")
+    async def test_description_present(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_transactions("DET")
         assert all("desc" in t for t in result)
 
-    def test_empty_transactions_raises(self) -> None:
+    async def test_empty_transactions_raises(self) -> None:
         with (
-            patch("mlb_api.requests.get", return_value=_mock_get({"transactions": []})),
+            _patch_mlb_get({"transactions": []}),
             pytest.raises(ValueError, match="No transactions"),
         ):
-            fetch_transactions("DET", days=7)
+            await fetch_transactions("DET", days=7)
 
 
 # ---------------------------------------------------------------------------
@@ -211,19 +188,16 @@ class TestFetchLiveScores:
         ]
     }
 
-    def test_returns_game_data(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_live_scores("DET")
+    async def test_returns_game_data(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_live_scores("DET")
         assert len(result) == 1
         assert result[0]["home_team"] == "Detroit Tigers"
         assert result[0]["home_score"] == 3
 
-    def test_no_game_today_raises(self) -> None:
-        with (
-            patch("mlb_api.requests.get", return_value=_mock_get({"dates": []})),
-            pytest.raises(ValueError, match="no game today"),
-        ):
-            fetch_live_scores("DET")
+    async def test_no_game_today_raises(self) -> None:
+        with _patch_mlb_get({"dates": []}), pytest.raises(ValueError, match="no game today"):
+            await fetch_live_scores("DET")
 
 
 # ---------------------------------------------------------------------------
@@ -256,19 +230,16 @@ class TestFetchNextGame:
         ]
     }
 
-    def test_returns_next_game(self) -> None:
-        with patch("mlb_api.requests.get", return_value=_mock_get(self._PAYLOAD)):
-            result = fetch_next_game("DET")
+    async def test_returns_next_game(self) -> None:
+        with _patch_mlb_get(self._PAYLOAD):
+            result = await fetch_next_game("DET")
         assert result["home_team"] == "Detroit Tigers"
         assert result["home_probable"] == "Tarik Skubal"
         assert result["date"] == "2025-04-05"
 
-    def test_no_upcoming_game_raises(self) -> None:
-        with (
-            patch("mlb_api.requests.get", return_value=_mock_get({"dates": []})),
-            pytest.raises(ValueError, match="No upcoming games"),
-        ):
-            fetch_next_game("DET")
+    async def test_no_upcoming_game_raises(self) -> None:
+        with _patch_mlb_get({"dates": []}), pytest.raises(ValueError, match="No upcoming games"):
+            await fetch_next_game("DET")
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +270,7 @@ def _game(date_str, home_id, home_score, away_id, away_score, *, status="Final",
 class TestFetchRecentResults:
     """116 = DET. Build a few schedule days, confirm we extract H/A + W/L correctly."""
 
-    def test_oldest_to_newest_order_with_home_away_split(self) -> None:
+    async def test_oldest_to_newest_order_with_home_away_split(self) -> None:
         payload = {
             "dates": [
                 {"date": "2026-04-30", "games": [_game("2026-04-30", 116, 5, 999, 2)]},
@@ -307,14 +278,14 @@ class TestFetchRecentResults:
                 {"date": "2026-05-02", "games": [_game("2026-05-02", 116, 2, 999, 4)]},
             ]
         }
-        with patch("mlb_api.requests.get", return_value=_mock_get(payload)):
-            results = fetch_recent_results("DET", n=10)
+        with _patch_mlb_get(payload):
+            results = await fetch_recent_results("DET", n=10)
 
         assert [r["date"] for r in results] == ["2026-04-30", "2026-05-01", "2026-05-02"]
         assert [r["is_home"] for r in results] == [True, False, True]
         assert [r["result"] for r in results] == ["W", "L", "L"]
 
-    def test_postponed_games_marked_p_and_kept(self) -> None:
+    async def test_postponed_games_marked_p_and_kept(self) -> None:
         payload = {
             "dates": [
                 {
@@ -333,12 +304,12 @@ class TestFetchRecentResults:
                 }
             ]
         }
-        with patch("mlb_api.requests.get", return_value=_mock_get(payload)):
-            results = fetch_recent_results("DET")
+        with _patch_mlb_get(payload):
+            results = await fetch_recent_results("DET")
         assert len(results) == 1
         assert results[0]["result"] == "P"
 
-    def test_in_progress_games_skipped(self) -> None:
+    async def test_in_progress_games_skipped(self) -> None:
         payload = {
             "dates": [
                 {
@@ -357,16 +328,16 @@ class TestFetchRecentResults:
                 }
             ]
         }
-        with patch("mlb_api.requests.get", return_value=_mock_get(payload)):
-            assert fetch_recent_results("DET") == []
+        with _patch_mlb_get(payload):
+            assert await fetch_recent_results("DET") == []
 
-    def test_n_caps_results_keeping_newest(self) -> None:
+    async def test_n_caps_results_keeping_newest(self) -> None:
         days = [
             {"date": f"2026-04-{i:02d}", "games": [_game(f"2026-04-{i:02d}", 116, i, 999, 0)]}
             for i in range(1, 13)
         ]
-        with patch("mlb_api.requests.get", return_value=_mock_get({"dates": days})):
-            results = fetch_recent_results("DET", n=5)
+        with _patch_mlb_get({"dates": days}):
+            results = await fetch_recent_results("DET", n=5)
         assert len(results) == 5
         assert results[0]["date"] == "2026-04-08"
         assert results[-1]["date"] == "2026-04-12"
