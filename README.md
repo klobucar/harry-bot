@@ -1,132 +1,113 @@
-# Harry 🎙️
+# Harry Bot
+
+![Harry Doyle in the radio booth beside the title “Harry Bot” and subtitle “MLB Stats for Discord”](assets/harry-doyle-banner.webp)
 
 [![CI](https://github.com/klobucar/harry-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/klobucar/harry-bot/actions/workflows/ci.yml)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
-[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Checked with ty](https://img.shields.io/badge/types-ty-261230.svg)](https://github.com/astral-sh/ty)
-[![Last commit](https://img.shields.io/github/last-commit/klobucar/harry-bot)](https://github.com/klobucar/harry-bot/commits/main)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-A Discord bot named after **Harry Doyle**, the sardonic, bourbon-fueled announcer from *Major League* (voiced by Bob Uecker). Harry delivers real MLB Statcast data with the same dry pessimism he used to narrate the Indians' improbable season.
+Harry brings MLB live scores, player stats, and Statcast charts to Discord. He's named after Harry Doyle, the deadpan Cleveland radio announcer played by Bob Uecker in *Major League*. [Harry Doyle on MLB.com](https://www.mlb.com/news/bob-uecker-as-harry-doyle-in-major-league)
 
-## Commands
+## Quick start
 
-### 📊 Statcast Plots
-| Command | Description |
-|---|---|
-| `/strikezone [first] [last] [year]` | Plots a pitcher's strike zone (colored by pitch type) for the given season |
-| `/battedzone [first] [last] [year]` | Plots all pitches thrown to a batter in a season |
-| `/spraychart [first] [last] [year]` | Plots where a batter hits the ball on a stadium spray chart |
-| `/hotzones [first] [last] [year]` | Show a batter's performance across the strike zone as a 3x3 thermal grid |
-| `/matchupzone [p_first] [p_last] [b_first] [b_last] [year]` | Zone plot of one pitcher vs one batter |
-| `/stadium [team]` | Show a ballpark's name, location, and visual outline |
+You’ll need Python 3.14 or later, [uv](https://github.com/astral-sh/uv), and a Discord application.
 
-### 📈 Stats & Analytics
-| Command | Description |
-|---|---|
-| `/stats [first] [last] [year]` | FanGraphs season stats — auto-detects pitcher or batter |
-| `/career [first] [last]` | Career aggregate stats from FanGraphs |
-| `/compare [p1] [p2] [year]` | Side-by-side FanGraphs stat comparison of two players |
-| `/arsenal [first] [last] [year]` | Pitcher's pitch mix — velocity, spin rate, and usage |
-| `/exitvelo [first] [last] [year]` | Batter's exit velocity and barrel stats |
-| `/percentile [first] [last] [year]` | Statcast percentile ranks (Higher = better vs. league average) |
-| `/hotcold [first] [last] [days]` | Rolling Statcast stats for the last N days (7, 14, or 30) |
-| `/leaderboard [stat] [year]` | Top 10 players for any FanGraphs stat (e.g. ERA, WAR, HR) |
-| `/junkstats` | Get an absurdly specific and weird baseball fact powered by Gemini |
+1. Create an application in the [Discord Developer Portal](https://discord.com/developers/applications). Get the bot token from the **Bot** page.
+2. Under **Installation**, configure **Guild Install** with the `bot` and `applications.commands` scopes. Grant **Send Messages**, **Attach Files**, and **Embed Links**, then use the install link to add Harry to your server. [Discord application command docs](https://docs.discord.com/developers/docs/interactions/slash-commands)
+3. From the repository root, run:
 
-### ⚔️ Head-to-Head
-| Command | Description |
-|---|---|
-| `/matchup [p_first] [p_last] [b_first] [b_last] [year]` | Head-to-head Statcast text stats: AVG, H, PA, K |
+   ```bash
+   uv sync
+   cp .env.example .env
+   ```
 
-### 🏆 League Info
-| Command | Description |
-|---|---|
-| `/standings [year]` | Show MLB division standings for a given season |
-| `/schedule [team] [year]` | Show a team's recent results and upcoming games |
-| `/livescore [team]` | Get today's live score for a specific team |
-| `/nextgame [team]` | Show a team's next scheduled game and probable pitchers |
-| `/roster [team]` | Show a team's current active 26-man roster |
-| `/injury [team]` | Show a team's current IL (Injured List) stints |
-| `/transactions [team]` | Show recent roster moves for a team |
-| `/hope [team]` | Show a team's playoff odds (HOPE %) — based on FanGraphs odds |
-| `/abs [team]` | ABS challenge stats — team summary, or league leaders if no team |
-| `/playerabs [first] [last]` | ABS challenge stats for a single player |
+4. Set `DISCORD_TOKEN` in `.env`, then start Harry:
 
-## Quick Start
+   ```bash
+   uv run --env-file .env python main.py
+   ```
+
+5. Try `/help` in Discord, then `/livescore team:DET` or `/spraychart first_name:Aaron last_name:Judge year:2024`.
+
+## Slash commands
+
+Angle brackets indicate required options. Square brackets indicate optional ones. Statcast season queries support 2015 onward, and FanGraphs season queries support 2002 onward.
+
+### Statcast charts
+
+| Command | What it shows |
+| --- | --- |
+| `/strikezone <first_name> <last_name> [year]` | A pitcher's pitch locations, colored by pitch type. |
+| `/battedzone <first_name> <last_name> [year]` | Pitch locations for pitches a batter faced. |
+| `/spraychart <first_name> <last_name> [year] [team_stadium]` | Where a batter put the ball in play, over a ballpark outline. |
+| `/hotzones <first_name> <last_name> [year]` | A batter's average across a 3×3 strike-zone grid. |
+| `/matchupzone <pitcher_first> <pitcher_last> <batter_first> <batter_last> [year]` | Pitch locations for one pitcher against one batter. |
+| `/stadium <team>` | A ballpark's name, location, and field outline. |
+
+### Player stats
+
+| Command | What it shows |
+| --- | --- |
+| `/stats <first_name> <last_name> [year]` | FanGraphs batting or pitching stats for a season. |
+| `/career <first_name> <last_name> [last_n_years]` | Aggregate FanGraphs stats across available seasons. |
+| `/compare <p1_first> <p1_last> <p2_first> <p2_last> [year]` | Two players' FanGraphs stats side by side. |
+| `/arsenal <first_name> <last_name> [year]` | A pitcher's pitch mix, velocity, and spin rate. |
+| `/exitvelo <first_name> <last_name> [year]` | A batter's exit velocity and barrel stats. |
+| `/percentile <first_name> <last_name> [year] [player_type]` | Statcast percentile ranks for a pitcher or batter. |
+| `/hotcold <first_name> <last_name> [days] [player_type]` | Recent Statcast numbers for a pitcher or batter. Defaults to 14 days. |
+| `/leaderboard <stat> [year] [player_type]` | The top 10 players for a FanGraphs stat such as ERA, WAR, or HR. |
+| `/matchup <pitcher_first> <pitcher_last> <batter_first> <batter_last> [year]` | Head-to-head batting average, hits, plate appearances, and strikeouts. |
+
+### Teams and league
+
+| Command | What it shows |
+| --- | --- |
+| `/livescore <team>` | Today's live score for a team. |
+| `/nextgame <team>` | A team's next scheduled game and probable pitchers. |
+| `/schedule <team> [year]` | Recent results and upcoming games for a team. |
+| `/standings [year]` | MLB division standings. |
+| `/roster <team>` | A team's active roster. |
+| `/injury <team>` | A team's current injured-list stints. |
+| `/transactions <team> [days]` | Recent roster moves. Defaults to seven days. |
+| `/hope <team>` | A team's FanGraphs playoff odds. |
+| `/abs [team] [year]` | Automated Ball-Strike challenge stats for a team, or league leaders when no team is supplied. |
+| `/playerabs <first_name> <last_name> [year]` | Automated Ball-Strike challenge stats for a player. |
+| `/junkstats` | An absurdly specific baseball stat generated by Gemini. |
+| `/help` | Harry's in-Discord command guide. |
+
+## Configuration
+
+| Variable | Effect |
+| --- | --- |
+| `DISCORD_TOKEN` | Required. Your Discord bot token. |
+| `DEV_GUILD_ID` | Syncs commands to one test server. Leave unset for global sync. |
+| `OWNER_ID` | Restricts bot DMs to this Discord user ID. |
+| `GEMINI_API_KEY` | Enables `/junkstats`. |
+| `JUNKSTATS_ALLOWLIST` | Restricts `/junkstats` to a comma-separated list of Discord server IDs. |
+| `PRESENCE_TEAM` | Team tracked in Harry's Discord status. Defaults to `DET`. |
+| `PRESENCE_TZ` | IANA timezone for the status display. Defaults to `America/New_York`. |
+| `PRESENCE_DEFAULT_MSG` | Discord status text when there’s no active game. |
+| `LOG_LEVEL` | Logging level. Defaults to `INFO`. |
+| `HARRY_JSON_LOGS` | Enables JSON logs when set. Fly.io enables them automatically. |
+| `BIGLEAGUE_CACHE_DIR` | Overrides the baseball data cache directory. Defaults to `~/.bigleague/cache`. |
+
+## Development
+
+Command handlers live in [`commands/`](commands/) and run on [discord.py](https://discordpy.readthedocs.io/). [bigleague](https://github.com/klobucar/bigleague) supplies Baseball Savant, FanGraphs, and MLB Stats API data and renders the charts. It stores Statcast pulls as Parquet, alongside a Bloom filter and the player register, in the local cache. Harry defers interactions that need more time and renders plots in worker threads. [`ai_commands.py`](commands/ai_commands.py) defines the Gemini models and fallback behavior for `/junkstats`.
 
 ```bash
-# 1. Install dependencies (creates .venv automatically)
-cd /path/to/Harry-bot
-uv sync
-
-# 2. Set your API tokens
-cp .env.example .env
-# Edit .env and paste your DISCORD_TOKEN and GEMINI_API_KEY
-
-# 3. Run the bot
-export DISCORD_TOKEN=your_token_here
-export OWNER_ID=your_discord_id_here  # Optional: locks DMs to you
-uv run python main.py
-
-# Or use the installed script entrypoint:
-uv run harry
-```
-
-## Running Tests
-
-```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check
 uv run pytest
 ```
 
-## Architecture
+## Deploy to Fly.io
 
-- **[discord.py](https://discordpy.readthedocs.io/)** — async Discord gateway + slash commands via `app_commands`
-- **[bigleague](https://github.com/klobucar/bigleague)** — async, polars-native data and plotting layer: Statcast / Baseball Savant, FanGraphs, the MLB Stats API, and the strike-zone, hot-zone, spray-chart, and stadium renderers
-- **[bouquet-bloom](https://github.com/klobucar/bouquet)** — Bloom filter behind bigleague's `bloom` extra; lets its on-disk cache skip lookups for data it knows it doesn't have
-- **Async all the way down** — data helpers are `async def` and awaited straight from the command handlers; only matplotlib rendering is pushed to a worker thread with `asyncio.to_thread()`
-- **`interaction.response.defer(thinking=True)`** — prevents Discord's 3-second interaction timeout
-- **[Gemini](https://ai.google.dev/)** — powers `/junkstats` via the `google-genai` SDK, walking a ladder of free-tier AI Studio models (3.6 Flash → 3.5 Flash-Lite → 3.8 Flash) when a model is rate-limited, overloaded, or slow
-- **[structlog](https://www.structlog.org/)** — structured logging over stdlib `logging`: JSON on Fly.io, colorized console locally (`LOG_LEVEL`, `HARRY_JSON_LOGS`)
+The included [Dockerfile](Dockerfile) and [`fly.toml`](fly.toml) run Harry as a background worker. For a new deployment, create a Fly app and set `app` in `fly.toml` to its name. Create a volume named `harry_data_cache` in the configured `primary_region`. Harry mounts it at `/data` and writes the bigleague cache to `/data/bigleague`. [Fly volume setup](https://fly.io/volumes/)
 
-## Caching & Memory
-
-- **On-disk cache**: bigleague keeps Statcast pulls as parquet (plus the Bloom filter and the player register) under `~/.bigleague/cache`. Set `BIGLEAGUE_CACHE_DIR` to move it — `fly.toml` points it at the mounted volume so the cache survives deploys.
-- **Polars instead of pandas**: frames are Arrow-backed polars end to end; pandas, pyarrow, and pybaseball are no longer installed.
-- **Lazy, headless plotting**: bigleague imports matplotlib on the first plot rather than at startup, and renders straight to PNG without pyplot or a GUI backend.
-- **Lean Discord Client**: Internal message and member caching is disabled in `HarryBot` to prevent memory bloat over time.
-
-## Harry's Persona
-
-Errors are delivered in the voice of Harry Doyle. Sample:
-
-> *"Juuust a bit outside... of what I can find. No results, pal."*
-
-## Bot Permissions
-
-In the Discord Developer Portal, enable:
-- `bot` scope
-- `applications.commands` scope
-- Send Messages + Attach Files + Embed Links permissions
-
-## Deploying to Fly.io
-
-Harry is configured to deploy as a background worker on Fly.io using the included `Dockerfile` and `fly.toml`.
-
-1. Install the `flyctl` CLI to set up the app.
-2. Initialize the app without deploying:
-   ```bash
-   fly launch --no-deploy
-   ```
-3. Open the [Fly.io Dashboard](https://fly.io/dashboard) in your browser.
-4. Navigate to your new `harry-bot` app -> **Secrets**.
-5. Add your `DISCORD_TOKEN`, `GEMINI_API_KEY`, and `OWNER_ID` to the Secrets UI.
-6. Deploy the bot via the CLI or UI (if linked to GitHub):
-   ```bash
-   fly deploy
-   ```
+Set `DISCORD_TOKEN` and any optional keys or IDs in the app's Fly secrets, then run `fly deploy` from the repository root.
 
 ## License
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+[Apache License 2.0](LICENSE).
