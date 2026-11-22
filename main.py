@@ -17,14 +17,6 @@ from __future__ import annotations
 import os
 import sys
 
-# --- Matplotlib Memory Optimization ---
-# Force matplotlib to use the headless 'Agg' backend.
-# This must happen before any other module imports matplotlib.pyplot.
-import matplotlib
-
-matplotlib.use("Agg")
-# --------------------------------------
-
 from bot import HarryBot
 from logging_config import configure_logging, get_logger
 
