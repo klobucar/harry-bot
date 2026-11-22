@@ -26,9 +26,15 @@ log = logging.getLogger("harry")
 # each model has its own quota bucket, so the next rung buys real headroom),
 # a 503 (model temporarily overloaded), or a timeout. Any other error stops
 # the climb immediately. Every rung must accept the ThinkingConfig below.
+#
+# Every rung is a stable model with a free tier in Google AI Studio, and each
+# must be a distinct model: retired IDs keep answering but silently route to
+# a newer one (gemini-3.7-flash -> gemini-3.8-flash, gemini-3.5-flash ->
+# gemini-3.6-flash), so listing one just retries the same model and quota.
 MODEL_LADDER: tuple[str, ...] = (
+    "gemini-4-hydrogen",
     "gemini-3.8-flash",
-    "gemini-3.7-flash",
+    "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
 )
 RETRYABLE_STATUS_CODES = frozenset({429, 503})
@@ -267,7 +273,7 @@ class AICommands(commands.Cog):
                         system_instruction=SYSTEM_INSTRUCTION,
                         # Gemini 3.x's thinking tokens draw from the same budget as
                         # max_output_tokens. LOW is the lowest level every ladder
-                        # rung accepts (3.8 and 3.7 Flash reject MINIMAL with a
+                        # rung accepts (4 Hydrogen and 3.8 Flash reject MINIMAL with a
                         # 400), and the higher ceiling leaves room for the actual
                         # sentence on top of it -- 110 alone left nothing but thinking
                         # tokens.

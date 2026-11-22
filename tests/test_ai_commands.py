@@ -322,3 +322,14 @@ async def test_junkstats_every_rung_rate_limited(mock_client_class, bot, interac
     interaction.followup.send.assert_called_once()
     _, kwargs = interaction.followup.send.call_args
     assert kwargs["ephemeral"] is True
+
+
+def test_model_ladder_has_no_retired_or_duplicate_rungs():
+    """Retired IDs still answer but route to a newer model, so a ladder that
+    lists one just retries the same model (and the same quota bucket)."""
+    from commands.ai_commands import MODEL_LADDER
+
+    rerouted = {"gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-pro"}
+    assert not rerouted.intersection(MODEL_LADDER)
+    assert len(set(MODEL_LADDER)) == len(MODEL_LADDER)
+    assert len(MODEL_LADDER) >= 2
