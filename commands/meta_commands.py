@@ -116,6 +116,6 @@ class MetaCommands(commands.Cog):
             ),
             inline=False,
         )
-        embed.set_footer(text="Data: Baseball Savant · FanGraphs · MLB Stats API · pybaseball")
+        embed.set_footer(text="Data: Baseball Savant · FanGraphs · MLB Stats API · bigleague")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)

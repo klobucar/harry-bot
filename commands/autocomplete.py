@@ -123,7 +123,7 @@ async def _ensure_cache() -> dict[int, Player]:
         seasons = [now.year - i for i in range(SEASONS_LOOKBACK)]
         log.info("Autocomplete: refreshing player cache for seasons %s", seasons)
         try:
-            raw = await asyncio.to_thread(fetch_recent_players, seasons)
+            raw = await fetch_recent_players(seasons)
         except Exception:
             log.exception("Autocomplete: player-cache refresh failed")
             return _players  # return whatever we have (possibly empty)

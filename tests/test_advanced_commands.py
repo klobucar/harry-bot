@@ -77,3 +77,20 @@ class TestAdvancedCommands:
         embed = kwargs["embed"]
         assert "Percentile Ranks" in embed.title
         assert any(f.name == "xERA" and f.value == "99th percentile" for f in embed.fields)
+
+    @patch("commands.advanced_commands.aggregate_career_frames")
+    @patch("commands.advanced_commands.fetch_year_fangraphs")
+    @patch("commands.advanced_commands.fetch_player_mlb_years")
+    async def test_career_does_not_silently_skip_failed_season(
+        self, mock_years, mock_fetch, mock_aggregate, bot, interaction
+    ):
+        mock_years.return_value = (2025, 2026)
+        mock_fetch.side_effect = RuntimeError("FanGraphs failed")
+
+        cog = AdvancedCommands(bot)
+        await cog.career.callback(cog, interaction, "Shohei", "Ohtani", None)  # type: ignore
+
+        mock_aggregate.assert_not_called()
+        args, kwargs = interaction.followup.send.call_args
+        assert "RuntimeError" in args[0]
+        assert kwargs["ephemeral"] is True

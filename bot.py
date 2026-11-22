@@ -9,21 +9,52 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
+from logging_config import current_rss_mb, get_logger
 from persona import harry_error, safe_exc_label
 
 log = logging.getLogger("harry")
 log.setLevel(logging.INFO)
+
+# Structured logger for machine-readable events (command.done / command.error).
+slog = get_logger("harry")
 
 # Disable overly verbose discord.py debug logs
 discord_logger = logging.getLogger("discord")
 discord_logger.setLevel(logging.WARNING)
 
 _OWNER_ONLY_DM_MSG = "Juuust a bit outside my jurisdiction, pal. I only take calls from the owner."
+
+
+def _command_fields(
+    interaction: discord.Interaction,
+    command: app_commands.Command | app_commands.ContextMenu | None = None,
+) -> dict[str, object]:
+    """Build the structured fields for a command.done / command.error event.
+
+    `wall_ms` is derived from the `t0` stamped in interaction_check; `rss_mb`
+    is best-effort current RSS (omitted off-Linux). Safe to call from any
+    command outcome path.
+    """
+    cmd = command or interaction.command
+    name = getattr(cmd, "qualified_name", None)
+    fields: dict[str, object] = {
+        "command": name,
+        "user_id": interaction.user.id if interaction.user else None,
+        "guild_id": interaction.guild_id,
+    }
+    t0 = interaction.extras.get("t0")
+    if t0 is not None:
+        fields["wall_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    rss = current_rss_mb()
+    if rss is not None:
+        fields["rss_mb"] = rss
+    return fields
 
 
 class HarryBot(commands.Bot):
@@ -49,8 +80,16 @@ class HarryBot(commands.Bot):
             )
 
         # Global slash-command check: block non-owner slash commands in DMs.
-        @self.tree.interaction_check  # ty: ignore
-        async def _owner_dm_check(interaction) -> bool:
+        # Also the earliest hook before a command body runs, so it's where we
+        # stamp the start time used to compute command latency.
+        #
+        # NOTE: CommandTree.interaction_check is a method invoked as
+        # `await self.interaction_check(interaction)` — it must be *assigned*,
+        # not used as a decorator. (The old `@self.tree.interaction_check` form
+        # silently no-op'd: it called the default check with the function as the
+        # interaction arg, leaving the real check as the always-True default.)
+        async def _owner_dm_check(interaction: discord.Interaction) -> bool:
+            interaction.extras["t0"] = time.perf_counter()
             if (
                 self._owner_id is not None
                 and isinstance(interaction.channel, discord.DMChannel)
@@ -59,6 +98,8 @@ class HarryBot(commands.Bot):
                 await interaction.response.send_message(_OWNER_ONLY_DM_MSG, ephemeral=True)
                 return False
             return True
+
+        self.tree.interaction_check = _owner_dm_check  # ty: ignore[invalid-assignment]
 
         # Global error handler: translate cooldown rejections into Harry's voice.
         # Cooldown fires BEFORE the command body, so interaction.response is
@@ -77,10 +118,24 @@ class HarryBot(commands.Bot):
                 log.error("Unhandled app command error", exc_info=inner)
                 msg = harry_error(safe_exc_label(inner))
 
+            slog.warning(
+                "command.error",
+                error=type(getattr(error, "original", error)).__name__,
+                **_command_fields(interaction),
+            )
+
             if interaction.response.is_done():
                 await interaction.followup.send(msg, ephemeral=True)
             else:
                 await interaction.response.send_message(msg, ephemeral=True)
+
+    async def on_app_command_completion(
+        self,
+        interaction: discord.Interaction,
+        command: app_commands.Command | app_commands.ContextMenu,
+    ) -> None:
+        """Emit a structured latency event after a slash command succeeds."""
+        slog.info("command.done", **_command_fields(interaction, command))
 
     async def setup_hook(self) -> None:
         from commands import setup

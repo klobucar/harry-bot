@@ -83,18 +83,17 @@ uv run pytest
 ## Architecture
 
 - **[discord.py](https://discordpy.readthedocs.io/)** — async Discord gateway + slash commands via `app_commands`
-- **[pybaseball](https://github.com/jldbc/pybaseball)** — Statcast / Baseball Savant data + `plotting.plot_strike_zone()`
-- **`asyncio.to_thread()`** — all blocking pybaseball/matplotlib calls run in a thread pool so the event loop stays responsive
+- **[bigleague](https://github.com/klobucar/bigleague)** — async, polars-native data and plotting layer: Statcast / Baseball Savant, FanGraphs, the MLB Stats API, and the strike-zone, hot-zone, spray-chart, and stadium renderers
+- **[bouquet-bloom](https://github.com/klobucar/bouquet)** — Bloom filter behind bigleague's `bloom` extra; lets its on-disk cache skip lookups for data it knows it doesn't have
+- **Async all the way down** — data helpers are `async def` and awaited straight from the command handlers; only matplotlib rendering is pushed to a worker thread with `asyncio.to_thread()`
 - **`interaction.response.defer(thinking=True)`** — prevents Discord's 3-second interaction timeout
-- **`plt.close(fig)`** — called after every plot save to prevent matplotlib memory leaks
-- **[Gemini 3.1 Flash Preview](https://ai.google.dev/)** — powers `/junkstats` via the `google-genai` SDK for absurdly specific baseball facts
+- **[Gemini](https://ai.google.dev/)** — powers `/junkstats` via the `google-genai` SDK, walking a model ladder (3.8 Flash → 3.7 Flash → 3.5 Flash-Lite) when a model is unavailable
+- **[structlog](https://www.structlog.org/)** — structured logging over stdlib `logging`: JSON on Fly.io, colorized console locally (`LOG_LEVEL`, `HARRY_JSON_LOGS`)
 
-## Memory Optimization
+## Caching & Memory
 
-Harry is optimized to run in resource-constrained environments (e.g., a **256MB** Fly.io container).
-
-- **PyArrow Zero-Copy Engine**: Monkey-patched Pandas to use the PyArrow C++ engine for all CSV/JSON reads. This reduced peak memory usage during data fetching from ~250MB to **<5MB**.
-- **Global Sentinel Lazy Loading**: Matplotlib and Pybaseball modules are deferred using a sentinel pattern in `statcast.py`. They are only initialized on the first command execution, keeping the idle RAM floor as low as possible.
+- **On-disk cache**: bigleague keeps Statcast pulls as parquet (plus the Bloom filter and the player register) under `~/.bigleague/cache`. Set `BIGLEAGUE_CACHE_DIR` to move it — `fly.toml` points it at the mounted volume so the cache survives deploys.
+- **Polars instead of pandas**: frames are Arrow-backed polars end to end; pandas, pyarrow, and pybaseball are no longer installed.
 - **Headless Plotting**: The `Agg` backend is forced globally in `main.py` to prevent loading heavy GUI frameworks (Tkinter/Qt).
 - **Lean Discord Client**: Internal message and member caching is disabled in `HarryBot` to prevent memory bloat over time.
 

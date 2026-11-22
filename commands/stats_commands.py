@@ -17,7 +17,7 @@ from commands.autocomplete import (
     make_first_name_autocomplete,
     make_last_name_autocomplete,
 )
-from fangraphs import fetch_player_stats
+from fangraphs import PlayerType, fetch_player_stats, player_role_blocks
 from persona import harry_error, safe_exc_label
 from statcast import fetch_pitch_arsenal, resolve_player_id
 from utils import current_season, validate_fangraphs_year, validate_statcast_year
@@ -63,16 +63,14 @@ class StatsCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
-            player_id: int | None = await asyncio.to_thread(
-                resolve_player_id, first_name.strip(), last_name.strip()
-            )
+            player_id: int | None = await resolve_player_id(first_name.strip(), last_name.strip())
             if player_id is None:
                 await interaction.followup.send(
                     harry_error(f"No MLBAM ID for {player_name!r}."), ephemeral=True
                 )
                 return
 
-            pitches: list[dict] = await asyncio.to_thread(fetch_pitch_arsenal, player_id, year)
+            pitches: list[dict] = await fetch_pitch_arsenal(player_id, year)
 
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
@@ -95,7 +93,7 @@ class StatsCommands(commands.Cog):
             description=f"**Season:** {year}\n{table}",
             color=discord.Color.from_rgb(70, 130, 180),  # steel blue
         )
-        embed.set_footer(text="Data: Baseball Savant / Statcast via pybaseball")
+        embed.set_footer(text="Data: Baseball Savant / Statcast via bigleague")
 
         await interaction.followup.send(embed=embed)
         log.info("/arsenal completed: %s (%d)", player_name, year)
@@ -132,9 +130,7 @@ class StatsCommands(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
-            result: dict = await asyncio.to_thread(
-                fetch_player_stats, first_name.strip(), last_name.strip(), year
-            )
+            result: dict = await fetch_player_stats(first_name.strip(), last_name.strip(), year)
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -143,17 +139,26 @@ class StatsCommands(commands.Cog):
             await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
-        player_type = result["type"]  # "pitcher" or "batter"
-        stats = result["stats"]
+        roles = player_role_blocks(result)
+        player_type = result["type"]
+        role_summary = " | ".join(
+            f"**{role.title()}:** {block.get('team', 'N/A')}" for role, block in roles.items()
+        )
 
         embed = discord.Embed(
             title=f"📊 {player_name} — {year} Stats",
-            description=f"**Type:** {player_type.title()} | **Team:** {result.get('team', 'N/A')}",
+            description=f"**Type:** {player_type.title()} | {role_summary}",
             color=discord.Color.from_rgb(34, 139, 34),
         )
-        for name, value in stats.items():
-            embed.add_field(name=name, value=str(value), inline=True)
-        embed.set_footer(text="Data: FanGraphs via pybaseball")
+        multiple_roles = len(roles) > 1
+        for role, block in roles.items():
+            stats = block.get("stats", {})
+            if not isinstance(stats, dict):
+                continue
+            for name, value in stats.items():
+                field_name = f"{role.title()} · {name}" if multiple_roles else name
+                embed.add_field(name=field_name, value=str(value), inline=True)
+        embed.set_footer(text="Data: FanGraphs via bigleague")
 
         await interaction.followup.send(embed=embed)
         log.info("/stats completed: %s (%d) [%s]", player_name, year, player_type)
@@ -199,9 +204,10 @@ class StatsCommands(commands.Cog):
         log.info("/compare called: %s vs %s (%d)", p1_name, p2_name, year)
 
         try:
-            p1_task = asyncio.to_thread(fetch_player_stats, p1_first.strip(), p1_last.strip(), year)
-            p2_task = asyncio.to_thread(fetch_player_stats, p2_first.strip(), p2_last.strip(), year)
-            p1_result, p2_result = await asyncio.gather(p1_task, p2_task)
+            p1_result, p2_result = await asyncio.gather(
+                fetch_player_stats(p1_first.strip(), p1_last.strip(), year),
+                fetch_player_stats(p2_first.strip(), p2_last.strip(), year),
+            )
         except ValueError as exc:
             await interaction.followup.send(harry_error(str(exc)), ephemeral=True)
             return
@@ -210,11 +216,16 @@ class StatsCommands(commands.Cog):
             await interaction.followup.send(harry_error(safe_exc_label(exc)), ephemeral=True)
             return
 
-        if p1_result["type"] != p2_result["type"]:
+        p1_roles = player_role_blocks(p1_result)
+        p2_roles = player_role_blocks(p2_result)
+        shared_roles: list[PlayerType] = [
+            role for role in ("pitcher", "batter") if role in p1_roles and role in p2_roles
+        ]
+        if not shared_roles:
             await interaction.followup.send(
                 harry_error(
-                    f"{p1_name} is a {p1_result['type']} and "
-                    f"{p2_name} is a {p2_result['type']} — can't compare a pitcher to a batter."
+                    f"{p1_name} and {p2_name} have no shared FanGraphs role "
+                    "(pitcher or batter) to compare."
                 ),
                 ephemeral=True,
             )
@@ -222,18 +233,25 @@ class StatsCommands(commands.Cog):
 
         embed = discord.Embed(
             title=f"⚖️ {p1_name} vs. {p2_name} — {year}",
-            description=f"**Type:** {p1_result['type'].title()}",
+            description=f"**Compared role(s):** {', '.join(r.title() for r in shared_roles)}",
             color=discord.Color.from_rgb(160, 32, 240),
         )
-        # Interleave both players' stats
-        all_keys = list(p1_result["stats"].keys())
-        for key in all_keys:
-            v1 = str(p1_result["stats"].get(key, "—"))
-            v2 = str(p2_result["stats"].get(key, "—"))
-            embed.add_field(
-                name=f"{key}", value=f"{p1_name}: **{v1}**\n{p2_name}: **{v2}**", inline=True
-            )
-        embed.set_footer(text="Data: FanGraphs via pybaseball")
+        for role in shared_roles:
+            p1_stats = p1_roles[role].get("stats", {})
+            p2_stats = p2_roles[role].get("stats", {})
+            if not isinstance(p1_stats, dict) or not isinstance(p2_stats, dict):
+                continue
+            all_keys = list(dict.fromkeys([*p1_stats, *p2_stats]))
+            for key in all_keys:
+                v1 = str(p1_stats.get(key, "—"))
+                v2 = str(p2_stats.get(key, "—"))
+                field_name = f"{role.title()} · {key}" if len(shared_roles) > 1 else key
+                embed.add_field(
+                    name=field_name,
+                    value=f"{p1_name}: **{v1}**\n{p2_name}: **{v2}**",
+                    inline=True,
+                )
+        embed.set_footer(text="Data: FanGraphs via bigleague")
 
         await interaction.followup.send(embed=embed)
         log.info("/compare completed: %s vs %s (%d)", p1_name, p2_name, year)
