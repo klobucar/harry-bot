@@ -30,6 +30,7 @@ env/
 .ruff_cache/
 .pytest_cache/
 .hypothesis/
+.pybaseball_cache/
 htmlcov/
 .coverage
 coverage.xml
