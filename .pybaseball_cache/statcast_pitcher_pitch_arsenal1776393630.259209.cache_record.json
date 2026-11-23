@@ -1,1 +1,0 @@
-{"func": "statcast_pitcher_pitch_arsenal", "args": [2024], "kwargs": {"minP": 10, "arsenal_type": "n_"}, "expires": "2026-04-23", "dataframe": "/Users/crabclaw/src/Harry-bot/.pybaseball_cache/statcast_pitcher_pitch_arsenal1776393630.259209.parquet"}
